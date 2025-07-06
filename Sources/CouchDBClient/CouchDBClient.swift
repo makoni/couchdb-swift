@@ -1332,7 +1332,9 @@ internal extension CouchDBClient {
 		var request = HTTPClientRequest(url: url)
 		request.method = .POST
 		request.headers.add(name: "Content-Type", value: "application/x-www-form-urlencoded")
-		let dataString = "name=\(userName)&password=\(userPassword)"
+		let encodedUserName = userName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+		let encodedPassword = userPassword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+		let dataString = "name=\(encodedUserName)&password=\(encodedPassword)"
 		request.body = .bytes(ByteBuffer(string: dataString))
 
 		let response =
