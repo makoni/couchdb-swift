@@ -8,16 +8,16 @@ on:
 
 jobs:
   ubuntu_build:
-    name: Build on Ubuntu with Swift ${{matrix.swift}}
+    name: Build on Ubuntu with Swift ${{ matrix.swift }}
     strategy:
       matrix:
-        swift: ["6.0", "6.0.3"]
+        swift: ["6.0", "6.0.3", "6.1"]
     runs-on: ubuntu-latest
     container: 
-      image: swift:${{matrix.swift}}
+      image: swift:${{ matrix.swift }}
     steps:          
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@v4
 
       - name: Swift version
         run: swift --version

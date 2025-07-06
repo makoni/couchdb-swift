@@ -56,6 +56,16 @@ final class CouchDBClientTests: XCTestCase {
 		}
 	}
 
+	func test02_DBDoesNotExist() async throws {
+		let nonExistentDB = "db_should_not_exist"
+		do {
+			let exists = try await couchDBClient.dbExists(nonExistentDB)
+			XCTAssertFalse(exists)
+		} catch {
+			XCTFail(error.localizedDescription)
+		}
+	}
+
 	func test03_GetAllDbs() async throws {
 		do {
 			let dbs = try await couchDBClient.getAllDBs()
@@ -361,6 +371,152 @@ final class CouchDBClientTests: XCTestCase {
 		} catch {
 			XCTFail(error.localizedDescription)
 		}
+	}
+
+	func test12_createDB_conflict() async throws {
+		// Try to create a DB that already exists, should throw insertError
+		do {
+			_ = try await couchDBClient.createDB(testsDB)
+			XCTFail("Expected conflict error not thrown")
+		} catch CouchDBClientError.insertError(let error) {
+			XCTAssertTrue(error.error == "file_exists" || error.error == "conflict")
+		} catch {
+			XCTFail(error.localizedDescription)
+		}
+	}
+
+	func test13_deleteDB_not_found() async throws {
+		let nonExistentDB = "db_should_not_exist"
+		do {
+			_ = try await couchDBClient.deleteDB(nonExistentDB)
+			XCTFail("Expected deleteError not thrown")
+		} catch CouchDBClientError.deleteError(let error) {
+			XCTAssertTrue(error.error == "not_found")
+		} catch {
+			XCTFail(error.localizedDescription)
+		}
+	}
+
+	func test14_get_document_not_found() async throws {
+		do {
+			let response = try await couchDBClient.get(fromDB: testsDB, uri: "nonexistent_doc_id")
+			XCTAssertEqual(response.status, .notFound)
+		} catch {
+			XCTFail(error.localizedDescription)
+		}
+	}
+
+	func test15_update_document_conflict() async throws {
+		let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
+		var insertedDoc: ExpectedDoc!
+		do {
+			insertedDoc = try await couchDBClient.insert(dbName: testsDB, doc: doc)
+			_ = try await couchDBClient.update(dbName: testsDB, doc: doc)
+			XCTFail("Expected conflictError not thrown")
+		} catch CouchDBClientError.conflictError(error: let error) {
+			XCTAssertTrue(error.error == "conflict")
+		} catch {
+			XCTFail(error.localizedDescription)
+		}
+
+		do {
+			try await couchDBClient.delete(fromDb: testsDB, doc: insertedDoc)
+		} catch {
+			XCTFail("Could not cleanup inserted document: \(error.localizedDescription)")
+		}
+	}
+
+	func test16_delete_document_not_found() async throws {
+		let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
+		do {
+			_ = try await couchDBClient.delete(fromDb: testsDB, doc: doc)
+			XCTFail("Expected deleteError not thrown")
+		} catch CouchDBClientError.deleteError(let error) {
+			XCTAssertTrue(error.error == "not_found")
+		} catch {
+			XCTFail(error.localizedDescription)
+		}
+	}
+
+	func test17_getAllDBs_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		do {
+			let dbs = try await couchDBClient.getAllDBs(eventLoopGroup: group)
+			XCTAssertTrue(dbs.contains(testsDB))
+		} catch {
+			XCTFail(error.localizedDescription)
+		}
+
+		try await group.shutdownGracefully()
+	}
+
+	func test18_dbExists_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		do {
+			let exists = try await couchDBClient.dbExists(testsDB, eventLoopGroup: group)
+			XCTAssertTrue(exists)
+		} catch {
+			XCTFail(error.localizedDescription)
+		}
+
+		try await group.shutdownGracefully()
+	}
+
+	func test19_createDB_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		let tempDB = "tempdb_for_eventloop"
+		defer {
+
+		}
+		do {
+			_ = try await couchDBClient.createDB(tempDB, eventLoopGroup: group)
+			let exists = try await couchDBClient.dbExists(tempDB)
+			XCTAssertTrue(exists)
+		} catch {
+			XCTFail(error.localizedDescription)
+		}
+
+		try await couchDBClient.deleteDB(tempDB)
+		try await group.shutdownGracefully()
+	}
+
+	func test20_deleteDB_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		let tempDB = "tempdb_for_eventloop_delete"
+		do {
+			_ = try await couchDBClient.createDB(tempDB)
+			_ = try await couchDBClient.deleteDB(tempDB, eventLoopGroup: group)
+			let exists = try await couchDBClient.dbExists(tempDB)
+			XCTAssertFalse(exists)
+		} catch {
+			XCTFail(error.localizedDescription)
+		}
+
+		try await group.shutdownGracefully()
+	}
+
+	func test21_find_with_custom_date_decoding_strategy() async throws {
+		let testDoc = ExpectedDoc(name: "DateTest")
+		let insertEncodedData = try JSONEncoder().encode(testDoc)
+		let insertResponse = try await couchDBClient.insert(
+			dbName: testsDB,
+			body: .bytes(ByteBuffer(data: insertEncodedData))
+		)
+
+		let selector = ["selector": ["name": "DateTest"]]
+		let docs: [ExpectedDoc] = try await couchDBClient.find(
+			inDB: testsDB,
+			selector: selector,
+			dateDecodingStrategy: .iso8601
+		)
+
+		XCTAssertTrue(docs.contains(where: { $0._id == insertResponse.id }))
+
+		_ = try await couchDBClient.delete(
+			fromDb: testsDB,
+			uri: insertResponse.id,
+			rev: insertResponse.rev
+		)
 	}
 
 	func test99_deleteDB() async throws {

@@ -873,6 +873,20 @@ public actor CouchDBClient {
 
 		let decoder = JSONDecoder()
 
+		if response.status == .conflict {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw CouchDBClientError.conflictError(error: couchdbError)
+			}
+			throw CouchDBClientError.unknownResponse
+		}
+
+		if response.status == .notFound {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw CouchDBClientError.deleteError(error: couchdbError)
+			}
+			throw CouchDBClientError.unknownResponse
+		}
+
 		do {
 			let decodedResponse = try decoder.decode(CouchUpdateResponse.self, from: data)
 			return decodedResponse
@@ -1169,6 +1183,8 @@ public actor CouchDBClient {
 	/// - Note: Ensure that the CouchDB server is running and accessible before calling this function.
 	///   Handle thrown errors appropriately, especially for authentication issues or unexpected server responses.
 	public func delete(fromDb dbName: String, uri: String, rev: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> CouchUpdateResponse {
+		try await authIfNeed(eventLoopGroup: eventLoopGroup)
+
 		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
 
 		defer {
@@ -1203,7 +1219,16 @@ public actor CouchDBClient {
 			return CouchUpdateResponse(ok: false, id: "", rev: "")
 		}
 
-		return try JSONDecoder().decode(CouchUpdateResponse.self, from: data)
+		let decoder = JSONDecoder()
+
+		if response.status == .notFound {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw CouchDBClientError.deleteError(error: couchdbError)
+			}
+			throw CouchDBClientError.unknownResponse
+		}
+
+		return try decoder.decode(CouchUpdateResponse.self, from: data)
 	}
 
 	/// Deletes a document conforming to `CouchDBRepresentable` from a specified database on the CouchDB server.
@@ -1307,7 +1332,9 @@ internal extension CouchDBClient {
 		var request = HTTPClientRequest(url: url)
 		request.method = .POST
 		request.headers.add(name: "Content-Type", value: "application/x-www-form-urlencoded")
-		let dataString = "name=\(userName)&password=\(userPassword)"
+		let encodedUserName = userName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+		let encodedPassword = userPassword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+		let dataString = "name=\(encodedUserName)&password=\(encodedPassword)"
 		request.body = .bytes(ByteBuffer(string: dataString))
 
 		let response =
@@ -1328,7 +1355,7 @@ internal extension CouchDBClient {
 		if let httpCookie = HTTPClient.Cookie(header: cookie, defaultDomain: self.couchHost) {
 			if httpCookie.expires == nil {
 				let formatter = DateFormatter()
-				formatter.dateFormat = "E, dd-MMM-yyy HH:mm:ss z"
+				formatter.dateFormat = "E, dd-MMM-yyyy HH:mm:ss z"
 
 				let expiresString = cookie.split(separator: ";")
 					.map({ $0.trimmingCharacters(in: .whitespaces) })
