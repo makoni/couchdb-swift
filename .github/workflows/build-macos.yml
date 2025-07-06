@@ -10,13 +10,13 @@ on:
     branches: [ "master" ]
 
 jobs:
- macOS:
-   name: Build on macOS
-   runs-on: macOS-15
-   steps:
-   - name: Print Swift version
-     run: swift --version
-   - name: Checkout
-     uses: actions/checkout@master
-   - name: Swift build
-     run: swift build -c release
+  macOS:
+    name: Build on macOS
+    runs-on: macOS-15
+    steps:
+    - name: Print Swift version
+      run: swift --version
+    - name: Checkout
+      uses: actions/checkout@master
+    - name: Swift build
+      run: swift build -c release
