@@ -1176,6 +1176,8 @@ public actor CouchDBClient {
 	/// - Note: Ensure that the CouchDB server is running and accessible before calling this function.
 	///   Handle thrown errors appropriately, especially for authentication issues or unexpected server responses.
 	public func delete(fromDb dbName: String, uri: String, rev: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> CouchUpdateResponse {
+        try await authIfNeed(eventLoopGroup: eventLoopGroup)
+
 		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
 
 		defer {
