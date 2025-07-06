@@ -873,6 +873,13 @@ public actor CouchDBClient {
 
 		let decoder = JSONDecoder()
 
+        if response.status == .conflict {
+            if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+                throw CouchDBClientError.conflictError(error: couchdbError)
+            }
+            throw CouchDBClientError.unknownResponse
+        }
+
 		do {
 			let decodedResponse = try decoder.decode(CouchUpdateResponse.self, from: data)
 			return decodedResponse
