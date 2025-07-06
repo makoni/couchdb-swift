@@ -873,12 +873,12 @@ public actor CouchDBClient {
 
 		let decoder = JSONDecoder()
 
-        if response.status == .conflict {
-            if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-                throw CouchDBClientError.conflictError(error: couchdbError)
-            }
-            throw CouchDBClientError.unknownResponse
-        }
+		if response.status == .conflict {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw CouchDBClientError.conflictError(error: couchdbError)
+			}
+			throw CouchDBClientError.unknownResponse
+		}
 
 		do {
 			let decodedResponse = try decoder.decode(CouchUpdateResponse.self, from: data)
@@ -1176,7 +1176,7 @@ public actor CouchDBClient {
 	/// - Note: Ensure that the CouchDB server is running and accessible before calling this function.
 	///   Handle thrown errors appropriately, especially for authentication issues or unexpected server responses.
 	public func delete(fromDb dbName: String, uri: String, rev: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> CouchUpdateResponse {
-        try await authIfNeed(eventLoopGroup: eventLoopGroup)
+		try await authIfNeed(eventLoopGroup: eventLoopGroup)
 
 		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
 
