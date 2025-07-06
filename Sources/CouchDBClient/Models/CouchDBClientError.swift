@@ -125,12 +125,12 @@ extension CouchDBClientError: LocalizedError {
 					defaultValue: "The response body is missing the expected data.",
 					bundle: Bundle.module
 				)
-            case .conflictError(let error):
-                return String(
-                    localized: "CONFLICT_ERROR",
-                    defaultValue: "The request failed due to a document update conflict: \(error.localizedDescription)",
-                    bundle: Bundle.module
-                )
+			case .conflictError(let error):
+				return String(
+					localized: "CONFLICT_ERROR",
+					defaultValue: "The request failed due to a document update conflict: \(error.localizedDescription)",
+					bundle: Bundle.module
+				)
 			}
 		} else {
 			return oldErrorDescription
@@ -162,8 +162,8 @@ extension CouchDBClientError: LocalizedError {
 			return NSLocalizedString("UNAUTHORIZED_ERROR", tableName: nil, bundle: Bundle.module, value: "Authentication failed due to an incorrect username or password.", comment: "Unauthorized access message")
 		case .noData:
 			return NSLocalizedString("NO_DATA_ERROR", tableName: nil, bundle: Bundle.module, value: "The response body is missing the expected data.", comment: "No data error message")
-        case .conflictError(let error):
-            return NSLocalizedString("CONFLICT_ERROR", tableName: nil, bundle: Bundle.module, value: "The request failed due to a document update conflict: \(error.localizedDescription)", comment: "Conflict error message")
+		case .conflictError(let error):
+			return NSLocalizedString("CONFLICT_ERROR", tableName: nil, bundle: Bundle.module, value: "The request failed due to a document update conflict: \(error.localizedDescription)", comment: "Conflict error message")
 		}
 	}
 }
