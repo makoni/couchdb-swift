@@ -1353,7 +1353,7 @@ internal extension CouchDBClient {
 		if let httpCookie = HTTPClient.Cookie(header: cookie, defaultDomain: self.couchHost) {
 			if httpCookie.expires == nil {
 				let formatter = DateFormatter()
-				formatter.dateFormat = "E, dd-MMM-yyy HH:mm:ss z"
+				formatter.dateFormat = "E, dd-MMM-yyyy HH:mm:ss z"
 
 				let expiresString = cookie.split(separator: ";")
 					.map({ $0.trimmingCharacters(in: .whitespaces) })
