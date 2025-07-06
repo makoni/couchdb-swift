@@ -1219,7 +1219,16 @@ public actor CouchDBClient {
 			return CouchUpdateResponse(ok: false, id: "", rev: "")
 		}
 
-		return try JSONDecoder().decode(CouchUpdateResponse.self, from: data)
+		let decoder = JSONDecoder()
+
+		if response.status == .notFound {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw CouchDBClientError.deleteError(error: couchdbError)
+			}
+			throw CouchDBClientError.unknownResponse
+		}
+
+		return try decoder.decode(CouchUpdateResponse.self, from: data)
 	}
 
 	/// Deletes a document conforming to `CouchDBRepresentable` from a specified database on the CouchDB server.
