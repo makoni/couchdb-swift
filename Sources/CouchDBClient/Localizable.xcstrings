@@ -1,6 +1,252 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "CONFLICT_ERROR" : {
+      "comment" : "Conflict error message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "The request failed due to a document update conflict: %@"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "فشل الطلب بسبب تعارض في تحديث المستند: %@"
+          }
+        },
+        "ba": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Һорау документты яңыртыуҙа ҡаршылыҡ арҡаһында уңышһыҙлыҡҡа осраны: %@"
+          }
+        },
+        "be": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запыт не ўдалося з-за канфлікту абнаўлення дакумента: %@"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заявката не бе успешна поради конфликт при обновяване на документа: %@"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Požadavek selhal kvůli konfliktu při aktualizaci dokumentu: %@"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmodningen mislykkedes på grund af en opdateringskonflikt i dokumentet: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Anfrage ist aufgrund eines Dokumenten-Konflikts fehlgeschlagen: %@"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Το αίτημα απέτυχε λόγω σύγκρουσης ενημέρωσης εγγράφου: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La solicitud falló debido a un conflicto de actualización del documento: %@"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pyyntö epäonnistui dokumentin päivitysristiriidan vuoksi: %@"
+          }
+        },
+        "fil": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nabigo ang request dahil sa conflict sa pag-update ng dokumento: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La requête a échoué en raison d'un conflit de mise à jour du document : %@"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "दस्तावेज़ अपडेट संघर्ष के कारण अनुरोध विफल रहा: %@"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zahtjev nije uspio zbog sukoba pri ažuriranju dokumenta: %@"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permintaan gagal karena konflik pembaruan dokumen: %@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La richiesta non è riuscita a causa di un conflitto di aggiornamento del documento: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ドキュメントの更新競合によりリクエストが失敗しました：%@"
+          }
+        },
+        "kk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сұрау құжатты жаңарту қақтығысына байланысты сәтсіз аяқталды: %@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "문서 업데이트 충돌로 인해 요청이 실패했습니다: %@"
+          }
+        },
+        "ky": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сурам документти жаңыртуудагы карама-каршылыкка байланыштуу ийгиликсиз болду: %@"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forespørselen mislyktes på grunn av en dokumentoppdateringskonflikt: %@"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Het verzoek is mislukt vanwege een conflict bij het bijwerken van het document: %@"
+          }
+        },
+        "nl-BE": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Het verzoek is mislukt vanwege een conflict bij het bijwerken van het document: %@"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Żądanie nie powiodło się z powodu konfliktu podczas aktualizacji dokumentu: %@"
+          }
+        },
+        "pt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A requisição falhou devido a um conflito de atualização do documento: %@"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cererea a eșuat din cauza unui conflict de actualizare a documentului: %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрос не выполнен из-за конфликта обновления документа: %@"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Požiadavka zlyhala kvôli konfliktu pri aktualizácii dokumentu: %@"
+          }
+        },
+        "sl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zahteva ni uspela zaradi konflikta pri posodobitvi dokumenta: %@"
+          }
+        },
+        "sr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Захтев није успео због конфликта при ажурирању документа: %@"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Begäran misslyckades på grund av en dokumentuppdateringskonflikt: %@"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "คำขอล้มเหลวเนื่องจากข้อขัดแย้งในการอัปเดตเอกสาร: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İstek, belge güncelleme çakışması nedeniyle başarısız oldu: %@"
+          }
+        },
+        "tt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сорау документ яңарту конфликт аркасында уңышсыз булды: %@"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запит не виконано через конфлікт оновлення документа: %@"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "دستاویز کی اپ ڈیٹ کے تنازع کی وجہ سے درخواست ناکام ہوگئی: %@"
+          }
+        },
+        "uz": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "So'rov hujjatni yangilashdagi ziddiyat sababli muvaffaqiyatsiz yakunlandi: %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yêu cầu thất bại do xung đột cập nhật tài liệu: %@"
+          }
+        },
+        "zh": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请求因文档更新冲突失败：%@"
+          }
+        }
+      }
+    },
     "DELETE_ERROR" : {
       "comment" : "DELETE request failure message",
       "localizations" : {
@@ -874,13 +1120,13 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "De 'id'-eigenschap is leeg of ontbreekt in het opgegeven document."
+            "value" : "De 'id'-eigenschap is leeg или ontbreekt in het opgegeven document."
           }
         },
         "nl-BE" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "De 'id'-eigenschap is leeg of ontbreekt in het opgegeven document."
+            "value" : "De 'id'-eigenschap is leeg или ontbreekt in het opgegeven document."
           }
         },
         "pl" : {
@@ -1609,13 +1855,13 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "De '_rev'-eigenschap is leeg of ontbreekt in het opgegeven document."
+            "value" : "De '_rev'-eigenschap is leeg или ontbreekt in het opgegeven document."
           }
         },
         "nl-BE" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "De '_rev'-eigenschap is leeg of ontbreekt in het opgegeven document."
+            "value" : "De '_rev'-eigenschap is leeg или ontbreekt in het opgegeven document."
           }
         },
         "pl" : {
@@ -1922,7 +2168,7 @@
             "state" : "translated",
             "value" : "Yanlış kullanıcı adı veya şifre nedeniyle kimlik doğrulama başarısız oldu."
           }
-        },
+               },
         "tt" : {
           "stringUnit" : {
             "state" : "translated",
