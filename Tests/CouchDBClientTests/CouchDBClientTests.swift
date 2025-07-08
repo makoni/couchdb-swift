@@ -398,12 +398,25 @@ final class CouchDBClientTests: XCTestCase {
 	}
 
 	func test14_get_document_not_found() async throws {
-		do {
-			let response = try await couchDBClient.get(fromDB: testsDB, uri: "nonexistent_doc_id")
-			XCTAssertEqual(response.status, .notFound)
-		} catch {
-			XCTFail(error.localizedDescription)
-		}
+        do {
+            let _: ExpectedDoc = try await couchDBClient.get(fromDB: testsDB, uri: "aaaaa")
+        } catch CouchDBClientError.notFound(_) {
+            // all good
+        } catch {
+            XCTFail(error.localizedDescription)
+            return
+        }
+
+        do {
+            _ = try await couchDBClient.get(fromDB: testsDB, uri: "aaaaa")
+        } catch CouchDBClientError.notFound(_) {
+            return
+        } catch {
+            XCTFail(error.localizedDescription)
+            return
+        }
+
+        XCTFail("Expected not found error")
 	}
 
 	func test15_update_document_conflict() async throws {

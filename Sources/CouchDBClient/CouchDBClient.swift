@@ -537,6 +537,19 @@ public actor CouchDBClient {
 		let body = response.body
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
 
+        if response.status == .notFound {
+            var bytes = try await body.collect(upTo: expectedBytes)
+            guard let data = bytes.readData(length: bytes.readableBytes) else {
+                throw CouchDBClientError.noData
+            }
+
+            let decoder = JSONDecoder()
+            if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+                throw CouchDBClientError.notFound(error: couchdbError)
+            }
+            throw CouchDBClientError.unknownResponse
+        }
+
 		response.body = .bytes(
 			try await body.collect(upTo: expectedBytes)
 		)
