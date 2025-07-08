@@ -43,7 +43,7 @@ public enum CouchDBClientError: Error, Sendable {
 	case unknownResponse
 
 	/// The requested resource was not found in CouchDB.
-	/// This error indicates that the document or resource does not exist.
+	/// - Parameter error: The `CouchDBError` returned by the server, providing details about the issue.
 	case notFound(error: CouchDBError)
 
 	/// Authentication failed due to incorrect username or password.
