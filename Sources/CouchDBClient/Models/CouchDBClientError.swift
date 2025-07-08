@@ -42,6 +42,10 @@ public enum CouchDBClientError: Error, Sendable {
 	/// This error indicates that the response was not in the expected format.
 	case unknownResponse
 
+	/// The requested resource was not found in CouchDB.
+	/// - Parameter error: The `CouchDBError` returned by the server, providing details about the issue.
+	case notFound(error: CouchDBError)
+
 	/// Authentication failed due to incorrect username or password.
 	/// This error suggests that the provided credentials were invalid.
 	case unauthorized
@@ -113,6 +117,12 @@ extension CouchDBClientError: LocalizedError {
 					defaultValue: "The response from CouchDB was unrecognized or invalid.",
 					bundle: Bundle.module
 				)
+			case .notFound:
+				return String(
+					localized: "NOT_FOUND_ERROR",
+					defaultValue: "The requested resource was not found in CouchDB.",
+					bundle: Bundle.module
+				)
 			case .unauthorized:
 				return String(
 					localized: "UNAUTHORIZED_ERROR",
@@ -158,6 +168,8 @@ extension CouchDBClientError: LocalizedError {
 			return NSLocalizedString("FIND_ERROR", tableName: nil, bundle: Bundle.module, value: "The FIND request wasn't successful: \(error.localizedDescription)", comment: "FIND request failure message")
 		case .unknownResponse:
 			return NSLocalizedString("UNKNOWN_RESPONSE_ERROR", tableName: nil, bundle: Bundle.module, value: "The response from CouchDB was unrecognized or invalid.", comment: "Unknown response message")
+		case .notFound:
+			return NSLocalizedString("NOT_FOUND_ERROR", tableName: nil, bundle: Bundle.module, value: "The requested resource was not found in CouchDB.", comment: "Not found error message")
 		case .unauthorized:
 			return NSLocalizedString("UNAUTHORIZED_ERROR", tableName: nil, bundle: Bundle.module, value: "Authentication failed due to an incorrect username or password.", comment: "Unauthorized access message")
 		case .noData:
