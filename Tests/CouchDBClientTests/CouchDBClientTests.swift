@@ -237,13 +237,14 @@ struct CouchDBClientTests {
 			_ = try await couchDBClient.createDB(testsDB)
 		}
 
-		#expect({
-            switch error {
-            case .insertError(let error):
-                return error.error == "file_exists" || error.error == "conflict"
-            default: return false
-            }
-		}(), "Expected CouchDBClientError.insertError")
+		#expect(
+			{
+				switch error {
+				case .insertError(let error):
+					return error.error == "file_exists" || error.error == "conflict"
+				default: return false
+				}
+			}(), "Expected CouchDBClientError.insertError")
 
 	}
 
@@ -251,31 +252,33 @@ struct CouchDBClientTests {
 	func delete_non_existing_DB() async throws {
 		let nonExistentDB = "db_should_not_exist"
 
-        let error = await #expect(throws: CouchDBClientError.self) {
-            _ = try await couchDBClient.deleteDB(nonExistentDB)
-        }
+		let error = await #expect(throws: CouchDBClientError.self) {
+			_ = try await couchDBClient.deleteDB(nonExistentDB)
+		}
 
-        #expect({
-            switch error {
-            case .deleteError(let error):
-                return error.error == "not_found"
-            default: return false
-            }
-        }(), "Expected CouchDBClientError.deleteError")
+		#expect(
+			{
+				switch error {
+				case .deleteError(let error):
+					return error.error == "not_found"
+				default: return false
+				}
+			}(), "Expected CouchDBClientError.deleteError")
 	}
 
 	@Test("Get non existing document. Should throw notFound")
 	func get_non_existing_document() async throws {
-        let error = await #expect(throws: CouchDBClientError.self) {
-            let _: ExpectedDoc = try await couchDBClient.get(fromDB: testsDB, uri: "aaaaa")
-        }
+		let error = await #expect(throws: CouchDBClientError.self) {
+			let _: ExpectedDoc = try await couchDBClient.get(fromDB: testsDB, uri: "aaaaa")
+		}
 
-        #expect({
-            switch error {
-            case .notFound(_): return true
-            default: return false
-            }
-        }(), "Expected CouchDBClientError.notFound")
+		#expect(
+			{
+				switch error {
+				case .notFound(_): return true
+				default: return false
+				}
+			}(), "Expected CouchDBClientError.notFound")
 	}
 
 	@Test("Update document without updating rev. Should throw conflict")
@@ -283,18 +286,19 @@ struct CouchDBClientTests {
 		let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
 		var insertedDoc: ExpectedDoc!
 
-        let error = await #expect(throws: CouchDBClientError.self) {
-            insertedDoc = try await couchDBClient.insert(dbName: testsDB, doc: doc)
-            _ = try await couchDBClient.update(dbName: testsDB, doc: doc)
-        }
+		let error = await #expect(throws: CouchDBClientError.self) {
+			insertedDoc = try await couchDBClient.insert(dbName: testsDB, doc: doc)
+			_ = try await couchDBClient.update(dbName: testsDB, doc: doc)
+		}
 
-        #expect({
-            switch error {
-            case .conflictError(let error):
-                return error.error == "conflict"
-            default: return false
-            }
-        }(), "Expected CouchDBClientError.conflictError")
+		#expect(
+			{
+				switch error {
+				case .conflictError(let error):
+					return error.error == "conflict"
+				default: return false
+				}
+			}(), "Expected CouchDBClientError.conflictError")
 
 		_ = try await couchDBClient.delete(fromDb: testsDB, doc: insertedDoc)
 	}
@@ -303,17 +307,18 @@ struct CouchDBClientTests {
 	func delete_non_existing_document() async throws {
 		let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
 
-        let error = await #expect(throws: CouchDBClientError.self) {
-            _ = try await couchDBClient.delete(fromDb: testsDB, doc: doc)
-        }
+		let error = await #expect(throws: CouchDBClientError.self) {
+			_ = try await couchDBClient.delete(fromDb: testsDB, doc: doc)
+		}
 
-        #expect({
-            switch error {
-            case .deleteError(let error):
-                return error.error == "not_found"
-            default: return false
-            }
-        }(), "Expected CouchDBClientError.deleteError")
+		#expect(
+			{
+				switch error {
+				case .deleteError(let error):
+					return error.error == "not_found"
+				default: return false
+				}
+			}(), "Expected CouchDBClientError.deleteError")
 	}
 
 	@Test("Call getAllDBs providing an EventLoopGroup")
@@ -321,20 +326,20 @@ struct CouchDBClientTests {
 		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 		let dbs = try await couchDBClient.getAllDBs(eventLoopGroup: group)
 
-        #expect(dbs.contains(testsDB))
+		#expect(dbs.contains(testsDB))
 
-        try await group.shutdownGracefully()
+		try await group.shutdownGracefully()
 	}
 
 	@Test("Call dbExists providing an EventLoopGroup")
 	func dbExists_with_eventLoopGroup() async throws {
 		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 
-        #expect(
-            try await couchDBClient.dbExists(testsDB, eventLoopGroup: group)
-        )
+		#expect(
+			try await couchDBClient.dbExists(testsDB, eventLoopGroup: group)
+		)
 
-        try await group.shutdownGracefully()
+		try await group.shutdownGracefully()
 	}
 
 	@Test("Calling createDB providing an EventLoopGroup")
@@ -342,13 +347,13 @@ struct CouchDBClientTests {
 		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 		let tempDB = "tempdb_for_eventloop"
 
-        _ = try await couchDBClient.createDB(tempDB, eventLoopGroup: group)
+		_ = try await couchDBClient.createDB(tempDB, eventLoopGroup: group)
 
-        #expect(
-            try await couchDBClient.dbExists(tempDB)
-        )
+		#expect(
+			try await couchDBClient.dbExists(tempDB)
+		)
 
-        try await couchDBClient.deleteDB(tempDB)
+		try await couchDBClient.deleteDB(tempDB)
 		try await group.shutdownGracefully()
 	}
 
@@ -357,14 +362,14 @@ struct CouchDBClientTests {
 		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 		let tempDB = "tempdb_for_eventloop_delete"
 
-        _ = try await couchDBClient.createDB(tempDB)
+		_ = try await couchDBClient.createDB(tempDB)
 		_ = try await couchDBClient.deleteDB(tempDB, eventLoopGroup: group)
 
 		#expect(
-            try await couchDBClient.dbExists(tempDB) == false
-        )
+			try await couchDBClient.dbExists(tempDB) == false
+		)
 
-        try await group.shutdownGracefully()
+		try await group.shutdownGracefully()
 	}
 
 	@Test("Calling find with custom date decoding strategy")
@@ -376,14 +381,14 @@ struct CouchDBClientTests {
 			body: .bytes(ByteBuffer(data: insertEncodedData))
 		)
 
-        let selector = ["selector": ["name": "DateTest"]]
+		let selector = ["selector": ["name": "DateTest"]]
 		let docs: [ExpectedDoc] = try await couchDBClient.find(
 			inDB: testsDB,
 			selector: selector,
 			dateDecodingStrategy: .iso8601
 		)
 
-        #expect(docs.contains(where: { $0._id == insertResponse.id }))
+		#expect(docs.contains(where: { $0._id == insertResponse.id }))
 
 		_ = try await couchDBClient.delete(
 			fromDb: testsDB,
