@@ -28,16 +28,12 @@ This is a simple library to work with CouchDB in Swift.
 - Vapor and Hummingbird integration
 - Robust error handling
 
----
-
 ## Supported Platforms & Swift Versions
 
 - Swift 6.0+ (actor-based concurrency)
 - Swift 5.x (use version 1.7.0)
 - macOS, Linux (tested on Ubuntu)
 - Compatible with Vapor 4 and Hummingbird
-
----
 
 ## Testing
 
@@ -47,13 +43,9 @@ Comprehensive test suite covers all major APIs, including Attachments:
 COUCHDB_PASS=myPassword swift test
 ```
 
----
-
 ## Documentation
 
 Find documentation, examples, and tutorials [here](https://spaceinbox.me/docs/couchdbclient/documentation/couchdbclient).
-
----
 
 ## Installation
 
@@ -66,8 +58,6 @@ dependencies: [
     .package(url: "https://github.com/makoni/couchdb-swift.git", from: "2.1.0"),
 ]
 ```
-
----
 
 ## Initialization
 
