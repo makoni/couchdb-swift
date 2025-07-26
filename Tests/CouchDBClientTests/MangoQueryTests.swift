@@ -19,7 +19,7 @@ struct MangoQueryTests {
 				"age": .comparison(.greaterThan(.int(30)))
 			],
 			fields: ["name", "email"],
-			sort: [["name": .asc]],
+			sort: [MangoSortField(field: "name", direction: .asc)],
 			limit: 10,
 			skip: 0,
 			useIndex: "my-index"

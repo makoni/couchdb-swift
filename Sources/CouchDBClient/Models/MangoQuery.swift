@@ -7,6 +7,20 @@
 
 import Foundation
 
+public struct MangoSortField: Codable, Sendable {
+	public let field: String
+	public let direction: MangoSortDirection
+
+	public init(field: String, direction: MangoSortDirection) {
+		self.field = field
+		self.direction = direction
+	}
+
+	public func asDictionary() -> [String: MangoSortDirection] {
+		[field: direction]
+	}
+}
+
 /// A struct representing a Mango Query for CouchDB.
 ///
 /// Use this struct to build complex queries to retrieve documents from a CouchDB database.
@@ -32,7 +46,7 @@ public struct MangoQuery: Codable, Sendable {
 	public let fields: [String]?
 
 	/// An array of sort definitions.
-	public let sort: [[String: MangoSortDirection]]?
+	public let sort: [MangoSortField]?
 
 	/// The maximum number of results to return.
 	public let limit: Int?
@@ -63,7 +77,7 @@ public struct MangoQuery: Codable, Sendable {
 	public init(
 		selector: [String: MangoValue],
 		fields: [String]? = nil,
-		sort: [[String: MangoSortDirection]]? = nil,
+		sort: [MangoSortField]? = nil,
 		limit: Int? = nil,
 		skip: Int? = nil,
 		useIndex: String? = nil
@@ -74,6 +88,39 @@ public struct MangoQuery: Codable, Sendable {
 		self.limit = limit
 		self.skip = skip
 		self.useIndex = useIndex
+	}
+
+	// Custom encoding to match CouchDB's expected sort format
+	public func encode(to encoder: Encoder) throws {
+		var container = encoder.container(keyedBy: CodingKeys.self)
+		try container.encode(selector, forKey: .selector)
+		try container.encodeIfPresent(fields, forKey: .fields)
+		if let sort = sort {
+			let sortArray = sort.map { $0.asDictionary() }
+			try container.encode(sortArray, forKey: .sort)
+		}
+		try container.encodeIfPresent(limit, forKey: .limit)
+		try container.encodeIfPresent(skip, forKey: .skip)
+		try container.encodeIfPresent(useIndex, forKey: .useIndex)
+	}
+
+	public init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		selector = try container.decode([String: MangoValue].self, forKey: .selector)
+		fields = try container.decodeIfPresent([String].self, forKey: .fields)
+		if let sortArray = try container.decodeIfPresent([[String: MangoSortDirection]].self, forKey: .sort) {
+			sort = sortArray.map { dict in
+				guard let (field, direction) = dict.first else {
+					fatalError("Invalid sort dictionary")
+				}
+				return MangoSortField(field: field, direction: direction)
+			}
+		} else {
+			sort = nil
+		}
+		limit = try container.decodeIfPresent(Int.self, forKey: .limit)
+		skip = try container.decodeIfPresent(Int.self, forKey: .skip)
+		useIndex = try container.decodeIfPresent(String.self, forKey: .useIndex)
 	}
 }
 

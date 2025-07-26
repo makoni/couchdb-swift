@@ -10,7 +10,7 @@ Task {
             "type": .string("user"),
             "age": .comparison(.greaterThan(.int(30)))
         ],
-        sort: [["name": .asc]],
+        sort: [MangoSortField(field: "name", direction: .asc)],
         limit: 10,
         skip: 0,
         fields: ["name", "email"]
