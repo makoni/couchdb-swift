@@ -956,7 +956,7 @@ public actor CouchDBClient {
 
 		if response.status == .notFound {
 			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-				throw CouchDBClientError.deleteError(error: couchdbError)
+				throw CouchDBClientError.updateError(error: couchdbError)
 			}
 			throw CouchDBClientError.unknownResponse
 		}

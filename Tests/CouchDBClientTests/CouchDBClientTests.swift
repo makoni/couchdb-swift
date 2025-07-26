@@ -523,10 +523,10 @@ struct CouchDBClientTests {
 		#expect(
 			{
 				switch error {
-				case .deleteError(let error):
+				case .updateError(let error):
 					return error.error == "not_found"
 				default: return false
 				}
-			}(), "Expected CouchDBClientError.deleteError")
+			}(), "Expected CouchDBClientError.updateError")
 	}
 }

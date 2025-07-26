@@ -5,7 +5,7 @@
         @Image(source: logo.svg, alt: "Advanced Mango Queries illustration")
     }
 
-    @Section(title: "Building Selectors and Queries1") {
+    @Section(title: "Building Selectors and Queries") {
         @ContentAndMedia {
             Advanced Mango queries allow you to filter, sort, and project CouchDB documents using expressive selectors and indexes. The following steps will guide you through building selectors, adding sort/limit/skip, using fields for projections, and optimizing queries with indexes.
         }
