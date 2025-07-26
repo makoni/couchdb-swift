@@ -23,4 +23,12 @@
         
         @TutorialReference(tutorial: "doc:ErrorsHandlingTutorial")
     }
+
+    @Chapter(name: "Advanced Mango Queries") {
+        Learn how to build complex selectors, use sorting, pagination, projections, and optimize queries with indexes in CouchDB.
+        
+        @Image(source: logo.svg, alt: "Advanced Mango Queries illustration")
+        
+        @TutorialReference(tutorial: "doc:AdvancedMangoQueries")
+    }
 }
