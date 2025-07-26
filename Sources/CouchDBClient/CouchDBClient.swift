@@ -807,7 +807,6 @@ public actor CouchDBClient {
 	///
 	/// - Note: Ensure that the CouchDB server is running and accessible before calling this function.
 	///   Handle thrown errors appropriately, especially authentication-related issues.
-
 	public func find(inDB dbName: String, body: HTTPClientRequest.Body, eventLoopGroup: EventLoopGroup? = nil) async throws -> HTTPClientResponse {
 		try await authIfNeed(eventLoopGroup: eventLoopGroup)
 
@@ -1336,7 +1335,6 @@ public actor CouchDBClient {
 	///
 	/// - Note: Ensure that the CouchDB server is operational and accessible before using this function.
 	///   Handle thrown errors appropriately, especially for missing document properties or unexpected server responses.
-
 	public func delete(fromDb dbName: String, doc: CouchDBRepresentable, eventLoopGroup: EventLoopGroup? = nil) async throws -> CouchUpdateResponse {
 		guard let rev = doc._rev else { throw CouchDBClientError.revMissing }
 
@@ -1350,6 +1348,13 @@ public actor CouchDBClient {
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
 	/// - Returns: A `MangoIndexesResponse` containing the list of indexes.
 	/// - Throws: A `CouchDBClientError` if the operation fails.
+	///
+	/// ### Example Usage:
+	/// ```swift
+	/// // List all Mango indexes in a database
+	/// let indexesResponse = try await couchDBClient.listIndexes(inDB: "myDatabase")
+	/// print(indexesResponse.indexes)
+	/// ```
 	public func listIndexes(inDB dbName: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> MangoIndexesResponse {
 		try await authIfNeed(eventLoopGroup: eventLoopGroup)
 
@@ -1397,8 +1402,24 @@ public actor CouchDBClient {
 	///   - dbName: The name of the database.
 	///   - index: The `MangoIndex` to create.
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
-	/// - Returns: A `CouchUpdateResponse` indicating the result of the operation.
+	/// - Returns: A `MangoCreateIndexResponse` indicating the result of the operation.
 	/// - Throws: A `CouchDBClientError` if the operation fails.
+	///
+	/// ### Example Usage:
+	/// ```swift
+	/// // Define a Mango index
+	/// let index = MangoIndex(
+	///     fields: ["name"],
+	///     name: "name-index",
+	///     type: "json"
+	/// )
+	/// // Create the index in the database
+	/// let response = try await couchDBClient.createIndex(inDB: "myDatabase", index: index)
+	/// print(response.result) // Should print "created" or "exists"
+	/// ```
+	///
+	/// - Note: Ensure that the CouchDB server is running and accessible before calling this function.
+	///   Handle thrown errors appropriately, especially for index creation conflicts or server issues.
 	public func createIndex(inDB dbName: String, index: MangoIndex, eventLoopGroup: EventLoopGroup? = nil) async throws -> MangoCreateIndexResponse {
 		try await authIfNeed(eventLoopGroup: eventLoopGroup)
 
@@ -1454,6 +1475,19 @@ public actor CouchDBClient {
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
 	/// - Returns: A `MangoExplainResponse` containing the query execution plan.
 	/// - Throws: A `CouchDBClientError` if the operation fails.
+	///
+	/// ### Example Usage:
+	/// ```swift
+	/// // Define a Mango query
+	/// let query = MangoQuery(selector: ["name": .string("Sam")])
+	/// // Explain the query execution plan
+	/// let explainResponse = try await couchDBClient.explain(inDB: "myDatabase", query: query)
+	/// print(explainResponse.index) // Shows which index will be used
+	/// print(explainResponse.selector) // Shows the query selector
+	/// ```
+	///
+	/// - Note: Ensure that the CouchDB server is running and accessible before calling this function.
+	///   Handle thrown errors appropriately, especially for query or index issues.
 	public func explain(inDB dbName: String, query: MangoQuery, eventLoopGroup: EventLoopGroup? = nil) async throws -> MangoExplainResponse {
 		try await authIfNeed(eventLoopGroup: eventLoopGroup)
 
