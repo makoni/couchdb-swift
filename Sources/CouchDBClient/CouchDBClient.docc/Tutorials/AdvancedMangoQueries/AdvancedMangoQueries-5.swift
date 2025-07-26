@@ -17,6 +17,6 @@ Task {
         useIndex: "my-index"
     )
 
-    let result: CouchDBFindResponse<User> = try await couchDBClient.find(dbName: dbName, query: query)
+    let result: CouchDBFindResponse<User> = try await couchDBClient.find(inDB: dbName, query: query)
     print(result.docs)
 }
