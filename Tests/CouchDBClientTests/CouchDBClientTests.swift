@@ -302,6 +302,15 @@ struct CouchDBClientTests {
 				}
 			}(), "Expected CouchDBClientError.conflictError")
 
+		// Verify original document is unchanged
+		let fetchedResponse = try await couchDBClient.get(fromDB: testsDB, uri: doc._id)
+		let expectedBytes = fetchedResponse.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
+		var bytes = try await fetchedResponse.body.collect(upTo: expectedBytes)
+		let data = bytes.readData(length: bytes.readableBytes)
+		let fetchedDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data!)
+		#expect(fetchedDoc._rev == doc._rev)
+		#expect(fetchedDoc.name == doc.name)
+
 		// Cleanup
 		_ = try await couchDBClient.delete(fromDb: testsDB, doc: doc)
 	}
