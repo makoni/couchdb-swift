@@ -15,15 +15,37 @@
 [![Test on Ubuntu](https://github.com/makoni/couchdb-swift/actions/workflows/test-ubuntu.yml/badge.svg?branch=master)](https://github.com/makoni/couchdb-swift/actions/workflows/test-ubuntu.yml)
 
 
-
 This is a simple library to work with CouchDB in Swift.
 
-- The latest version supports strict concurrency: `CouchDBClient` is an actor and requires Swift 6.0 or newer. For Swift 5, you can still use version `1.7.0`.
-- Compatible with Vapor 4.
-- Version `1.0.0` can be used with Vapor 4 without `async/await`; Swift 5.3 is required.
-- You can use the old version for Vapor 3 by checking out the `vapor3` branch or using versions earlier than `1.0.0`.
+---
 
-The only dependency for this library is [`async-http-client`](https://github.com/swift-server/async-http-client).
+## Features
+
+- Strict concurrency: `CouchDBClient` is an actor (Swift 6+)
+- Attachments API: upload, download, delete files/images
+- Mango queries and indexes
+- Document CRUD (create, read, update, delete)
+- Vapor and Hummingbird integration
+- Robust error handling
+
+---
+
+## Supported Platforms & Swift Versions
+
+- Swift 6.0+ (actor-based concurrency)
+- Swift 5.x (use version 1.7.0)
+- macOS, Linux (tested on Ubuntu)
+- Compatible with Vapor 4 and Hummingbird
+
+---
+
+## Testing
+
+Comprehensive test suite covers all major APIs, including Attachments:
+- Run tests with:
+  ```bash
+COUCHDB_PASS=myPassword swift test
+```
 
 ---
 
@@ -193,3 +215,8 @@ print(docs)
 ### Using with Vapor
 Here's a simple [tutorial](https://spaceinbox.me/docs/couchdbclient/tutorials/couchdbclient/vaportutorial) for Vapor.
 
+---
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
