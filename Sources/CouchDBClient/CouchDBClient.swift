@@ -1399,7 +1399,7 @@ public actor CouchDBClient {
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
 	/// - Returns: A `CouchUpdateResponse` indicating the result of the operation.
 	/// - Throws: A `CouchDBClientError` if the operation fails.
-	public func createIndex(inDB dbName: String, index: MangoIndex, eventLoopGroup: EventLoopGroup? = nil) async throws -> CouchUpdateResponse {
+	public func createIndex(inDB dbName: String, index: MangoIndex, eventLoopGroup: EventLoopGroup? = nil) async throws -> MangoCreateIndexResponse {
 		try await authIfNeed(eventLoopGroup: eventLoopGroup)
 
 		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
@@ -1436,8 +1436,8 @@ public actor CouchDBClient {
 
 		let decoder = JSONDecoder()
 		do {
-			let updateResponse = try decoder.decode(CouchUpdateResponse.self, from: data)
-			return updateResponse
+			let createIndexResponse = try decoder.decode(MangoCreateIndexResponse.self, from: data)
+			return createIndexResponse
 		} catch let parsingError {
 			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
 				throw CouchDBClientError.insertError(error: couchdbError)

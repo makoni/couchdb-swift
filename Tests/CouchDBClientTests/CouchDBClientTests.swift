@@ -451,13 +451,13 @@ struct CouchDBClientTests {
 
 	@Test("List indexes")
 	func list_indexes() async throws {
-        let index = MangoIndex(
-            ddoc: "test-ddoc",
-            name: "test-index",
-            type: "json",
-            def: .init(fields: [["name": "asc"]])
-        )
-
+		let indexDef = IndexDefinition(fields: [["name": "asc"]])
+		let index = MangoIndex(
+			ddoc: "test-ddoc",
+			name: "test-index",
+			type: "json",
+			def: indexDef
+		)
 		_ = try await couchDBClient.createIndex(inDB: testsDB, index: index)
 
 		let indexesResponse = try await couchDBClient.listIndexes(inDB: testsDB)
