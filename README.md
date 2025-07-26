@@ -196,7 +196,7 @@ let selector: [String: MangoValue] = [
     "type": .string("user"),
     "age": .comparison(.greaterThan(.int(30)))
 ]
-let query = MangoQuery(selector: selector, fields: ["name", "email"], sort: [["name": .asc]], limit: 10, skip: 0)
+let query = MangoQuery(selector: selector, fields: ["name", "email"], sort: [MangoSortField(field: "name", direction: .asc)], limit: 10, skip: 0)
 let docs: [ExpectedDoc] = try await couchDBClient.find(inDB: "databaseName", query: query)
 print(docs)
 ```
