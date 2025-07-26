@@ -31,5 +31,5 @@ public struct MangoExplainResponse: Codable, Sendable {
 	public let fields: [String]
 
 	/// The range that was scanned.
-	public let range: [String: MangoValue]
+	public let range: [String: MangoValue]?
 }

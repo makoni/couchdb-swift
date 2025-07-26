@@ -451,6 +451,48 @@ struct CouchDBClientTests {
 			}(), "Expected CouchDBClientError.revMissing")
 	}
 
+	@Test("Create Mango index and verify response")
+	func test_createIndex() async throws {
+		let indexDef = IndexDefinition(fields: [["name": "asc"]])
+		let index = MangoIndex(
+			ddoc: "test-ddoc-create",
+			name: "test-index-create",
+			type: "json",
+			def: indexDef
+		)
+		let response = try await couchDBClient.createIndex(inDB: testsDB, index: index)
+		#expect(response.result == "created" || response.result == "exists")
+		#expect(response.id != nil)
+	}
+
+	@Test("Explain Mango query and verify response")
+	func test_explainQuery() async throws {
+		// Ensure an index exists for 'name' so explain returns fields
+		let indexDef = IndexDefinition(fields: [["name": "asc"]])
+		let index = MangoIndex(
+			ddoc: "test-ddoc-explain",
+			name: "test-index-explain",
+			type: "json",
+			def: indexDef
+		)
+		_ = try await couchDBClient.createIndex(inDB: testsDB, index: index)
+
+		// Insert multiple documents with the 'name' field so CouchDB recognizes the index
+		let names = ["Sam", "Alex", "Jordan", "Taylor", "Morgan"]
+		for name in names {
+			let doc = ExpectedDoc(name: name)
+			_ = try await couchDBClient.insert(dbName: testsDB, doc: doc)
+		}
+
+		let selector: [String: MangoValue] = ["name": .string("Sam")]
+		let query = MangoQuery(selector: selector, fields: ["name"])
+		let explainResponse = try await couchDBClient.explain(inDB: testsDB, query: query)
+
+		#expect(!explainResponse.fields.isEmpty)
+		#expect(explainResponse.fields.contains("name"))
+		#expect(explainResponse.dbname == testsDB)
+	}
+
 	@Test("List indexes")
 	func list_indexes() async throws {
 		let indexDef = IndexDefinition(fields: [["name": "asc"]])
