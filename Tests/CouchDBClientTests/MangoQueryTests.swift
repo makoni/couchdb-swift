@@ -79,4 +79,30 @@ struct MangoQueryTests {
         #expect(fields != nil)
         #expect(fields?.first?["name"] == "asc")
     }
+
+    @Test("MangoValue decoding")
+    func testMangoValueDecoding() throws {
+        let json = """
+        {
+            "stringValue": "hello",
+            "intValue": 42,
+            "doubleValue": 3.14,
+            "boolValue": true,
+            "arrayValue": [1, "two", true],
+            "dictionaryValue": {
+                "nestedString": "world"
+            }
+        }
+        """.data(using: .utf8)!
+        
+        let decoder = JSONDecoder()
+        let dictionary = try decoder.decode([String: MangoValue].self, from: json)
+        
+        #expect(dictionary["stringValue"] != nil)
+        #expect(dictionary["intValue"] != nil)
+        #expect(dictionary["doubleValue"] != nil)
+        #expect(dictionary["boolValue"] != nil)
+        #expect(dictionary["arrayValue"] != nil)
+        #expect(dictionary["dictionaryValue"] != nil)
+    }
 }
