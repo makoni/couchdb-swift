@@ -287,7 +287,7 @@ struct CouchDBClientTests {
 		// Insert document without _rev, let CouchDB assign it
 		var doc = ExpectedDoc(name: "should not exist")
 		doc = try await couchDBClient.insert(dbName: testsDB, doc: doc)
-		let outdatedDoc = ExpectedDoc(name: doc.name, _id: doc._id, _rev: "1-abc") // purposely wrong _rev
+		let outdatedDoc = ExpectedDoc(name: doc.name, _id: doc._id, _rev: "1-abc")  // purposely wrong _rev
 
 		let error = await #expect(throws: CouchDBClientError.self) {
 			_ = try await couchDBClient.update(dbName: testsDB, doc: outdatedDoc)
