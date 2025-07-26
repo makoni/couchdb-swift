@@ -8,7 +8,6 @@
 
 [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fmakoni%2Fcouchdb-swift%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/makoni/couchdb-swift)
 [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fmakoni%2Fcouchdb-swift%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/makoni/couchdb-swift)
-[![Vapor 4](https://img.shields.io/badge/vapor-4-blue.svg?style=flat)](https://vapor.codes)
 
 [![Build on macOS](https://github.com/makoni/couchdb-swift/actions/workflows/build-macos.yml/badge.svg?branch=master)](https://github.com/makoni/couchdb-swift/actions/workflows/build-macos.yml)
 [![Build on Ubuntu](https://github.com/makoni/couchdb-swift/actions/workflows/build-ubuntu.yml/badge.svg?branch=master)](https://github.com/makoni/couchdb-swift/actions/workflows/build-ubuntu.yml)
@@ -37,9 +36,9 @@ This is a simple library to work with CouchDB in Swift.
 
 ## Testing
 
-Comprehensive test suite covers all major APIs, including Attachments:
-- Run tests with:
-  ```bash
+Comprehensive test suite covers all major APIs, including Attachments. Run tests with:
+
+```bash
 COUCHDB_PASS=myPassword swift test
 ```
 
