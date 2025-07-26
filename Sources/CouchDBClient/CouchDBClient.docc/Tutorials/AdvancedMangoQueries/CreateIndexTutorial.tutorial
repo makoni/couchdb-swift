@@ -1,0 +1,25 @@
+@Tutorial(time: 3) {
+    @Intro(title: "Creating a Mango Index") {
+        Learn how to create a Mango index in CouchDB to optimize query performance.
+        @Image(source: logo.svg, alt: "Create Index illustration")
+    }
+    @Section(title: "Creating an Index") {
+        @ContentAndMedia {
+            Creating an index involves defining the fields to index, constructing the MangoIndex object, and executing the index creation using CouchDBClient.
+        }
+        @Steps {
+            @Step {
+                Define the index fields.
+                @Code(name: "main.swift", file: CreateIndexTutorial-1.swift)
+            }
+            @Step {
+                Create the MangoIndex object.
+                @Code(name: "main.swift", file: CreateIndexTutorial-2.swift)
+            }
+            @Step {
+                Execute the index creation with CouchDBClient.
+                @Code(name: "main.swift", file: CreateIndexTutorial-3.swift)
+            }
+        }
+    }
+}

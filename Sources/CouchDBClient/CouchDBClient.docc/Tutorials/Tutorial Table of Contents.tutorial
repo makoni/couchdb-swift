@@ -29,6 +29,7 @@
         
         @Image(source: logo.svg, alt: "Advanced Mango Queries illustration")
         
+        @TutorialReference(tutorial: "doc:CreateIndexTutorial")
         @TutorialReference(tutorial: "doc:AdvancedMangoQueries")
     }
 }

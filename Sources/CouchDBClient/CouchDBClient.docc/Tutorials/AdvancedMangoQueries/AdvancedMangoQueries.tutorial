@@ -27,10 +27,10 @@
             }
             
             @Step {
-                Create indexes for query optimization ([CouchDB Indexes](https://docs.couchdb.org/en/stable/api/database/find.html#db-index)).
+                Create indexes for query optimization.
                 @Code(name: "main.swift", file: AdvancedMangoQueries-4.swift)
             }
-            
+
             @Step {
                 Execute the Mango query using CouchDBClient's `find` method to retrieve results from the database.
                 @Code(name: "main.swift", file: AdvancedMangoQueries-5.swift)
