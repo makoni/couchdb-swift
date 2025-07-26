@@ -1534,6 +1534,166 @@ public actor CouchDBClient {
 			throw parsingError
 		}
 	}
+
+	/// Uploads an attachment to a CouchDB document.
+	///
+	/// - Parameters:
+	///   - dbName: The database name.
+	///   - docId: The document ID.
+	///   - attachmentName: The name of the attachment.
+	///   - data: The binary data to upload.
+	///   - contentType: The MIME type of the attachment.
+	///   - rev: The current document revision.
+	///   - eventLoopGroup: Optional EventLoopGroup for network operations.
+	/// - Returns: A CouchUpdateResponse with the new revision.
+	/// - Throws: CouchDBClientError on failure.
+	///
+	/// ### Example Usage:
+	/// ```swift
+	/// let response = try await couchDBClient.uploadAttachment(
+	///     dbName: "myDatabase",
+	///     docId: "docid",
+	///     attachmentName: "image.png",
+	///     data: imageData,
+	///     contentType: "image/png",
+	///     rev: "currentRev"
+	/// )
+	/// print("Attachment uploaded, new revision: \(response.rev)")
+	/// ```
+	public func uploadAttachment(dbName: String, docId: String, attachmentName: String, data: Data, contentType: String, rev: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> CouchUpdateResponse {
+		try await authIfNeed(eventLoopGroup: eventLoopGroup)
+		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
+		defer {
+			if eventLoopGroup != nil {
+				DispatchQueue.main.async {
+					try? httpClient.syncShutdown()
+				}
+			}
+		}
+		let url = buildUrl(path: "/\(dbName)/\(docId)/\(attachmentName)", query: [URLQueryItem(name: "rev", value: rev)])
+		var request = try buildRequest(fromUrl: url, withMethod: .PUT)
+		request.headers.replaceOrAdd(name: "Content-Type", value: contentType)
+		request.body = .bytes(ByteBuffer(data: data))
+		let response = try await httpClient.execute(request, timeout: .seconds(requestsTimeout))
+		if response.status == .unauthorized {
+			throw CouchDBClientError.unauthorized
+		}
+		let body = response.body
+		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
+		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+		guard let responseData = bytes.readData(length: bytes.readableBytes) else {
+			throw CouchDBClientError.noData
+		}
+		let decoder = JSONDecoder()
+		do {
+			let updateResponse = try decoder.decode(CouchUpdateResponse.self, from: responseData)
+			return updateResponse
+		} catch let parsingError {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: responseData) {
+				throw CouchDBClientError.updateError(error: couchdbError)
+			}
+			throw parsingError
+		}
+	}
+
+	/// Downloads an attachment from a CouchDB document.
+	///
+	/// - Parameters:
+	///   - dbName: The database name.
+	///   - docId: The document ID.
+	///   - attachmentName: The name of the attachment.
+	///   - eventLoopGroup: Optional EventLoopGroup for network operations.
+	/// - Returns: The binary data of the attachment.
+	/// - Throws: CouchDBClientError on failure.
+	///
+	/// ### Example Usage:
+	/// ```swift
+	/// let attachmentData = try await couchDBClient.downloadAttachment(
+	///     dbName: "myDatabase",
+	///     docId: "docid",
+	///     attachmentName: "image.png"
+	/// )
+	/// print("Downloaded attachment, size: \(attachmentData.count) bytes")
+	/// ```
+	public func downloadAttachment(dbName: String, docId: String, attachmentName: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> Data {
+		try await authIfNeed(eventLoopGroup: eventLoopGroup)
+		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
+		defer {
+			if eventLoopGroup != nil {
+				DispatchQueue.main.async {
+					try? httpClient.syncShutdown()
+				}
+			}
+		}
+		let url = buildUrl(path: "/\(dbName)/\(docId)/\(attachmentName)")
+		let request = try buildRequest(fromUrl: url, withMethod: .GET)
+		let response = try await httpClient.execute(request, timeout: .seconds(requestsTimeout))
+		if response.status == .unauthorized {
+			throw CouchDBClientError.unauthorized
+		}
+		let body = response.body
+		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
+		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+		guard let data = bytes.readData(length: bytes.readableBytes) else {
+			throw CouchDBClientError.noData
+		}
+		return data
+	}
+
+	/// Deletes an attachment from a CouchDB document.
+	///
+	/// - Parameters:
+	///   - dbName: The database name.
+	///   - docId: The document ID.
+	///   - attachmentName: The name of the attachment.
+	///   - rev: The current document revision.
+	///   - eventLoopGroup: Optional EventLoopGroup for network operations.
+	/// - Returns: A CouchUpdateResponse with the new revision.
+	/// - Throws: CouchDBClientError on failure.
+	///
+	/// ### Example Usage:
+	/// ```swift
+	/// let deleteResponse = try await couchDBClient.deleteAttachment(
+	///     dbName: "myDatabase",
+	///     docId: "docid",
+	///     attachmentName: "image.png",
+	///     rev: "currentRev"
+	/// )
+	/// print("Attachment deleted, new revision: \(deleteResponse.rev)")
+	/// ```
+	public func deleteAttachment(dbName: String, docId: String, attachmentName: String, rev: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> CouchUpdateResponse {
+		try await authIfNeed(eventLoopGroup: eventLoopGroup)
+		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
+		defer {
+			if eventLoopGroup != nil {
+				DispatchQueue.main.async {
+					try? httpClient.syncShutdown()
+				}
+			}
+		}
+		let url = buildUrl(path: "/\(dbName)/\(docId)/\(attachmentName)", query: [URLQueryItem(name: "rev", value: rev)])
+		let request = try buildRequest(fromUrl: url, withMethod: .DELETE)
+		let response = try await httpClient.execute(request, timeout: .seconds(requestsTimeout))
+		if response.status == .unauthorized {
+			throw CouchDBClientError.unauthorized
+		}
+		let body = response.body
+		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
+		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+		guard let responseData = bytes.readData(length: bytes.readableBytes) else {
+			throw CouchDBClientError.noData
+		}
+		let decoder = JSONDecoder()
+		do {
+			let updateResponse = try decoder.decode(CouchUpdateResponse.self, from: responseData)
+			return updateResponse
+		} catch let parsingError {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: responseData) {
+				throw CouchDBClientError.deleteError(error: couchdbError)
+			}
+			throw parsingError
+		}
+	}
 }
 
 // MARK: - Private methods

@@ -80,6 +80,43 @@ let couchDBClient = CouchDBClient(config: config)
 
 ## Usage examples
 
+### Uploading an Attachment
+
+```swift
+let response = try await couchDBClient.uploadAttachment(
+    dbName: "myDatabase",
+    docId: "docid",
+    attachmentName: "image.png",
+    data: imageData,
+    contentType: "image/png",
+    rev: "currentRev"
+)
+print("Attachment uploaded, new revision: \(response.rev)")
+```
+
+### Downloading an Attachment
+
+```swift
+let attachmentData = try await couchDBClient.downloadAttachment(
+    dbName: "myDatabase",
+    docId: "docid",
+    attachmentName: "image.png"
+)
+print("Downloaded attachment, size: \(attachmentData.count) bytes")
+```
+
+### Deleting an Attachment
+
+```swift
+let deleteResponse = try await couchDBClient.deleteAttachment(
+    dbName: "myDatabase",
+    docId: "docid",
+    attachmentName: "image.png",
+    rev: "currentRev"
+)
+print("Attachment deleted, new revision: \(deleteResponse.rev)")
+```
+
 ### Define Your Document Model
 
 ```swift
