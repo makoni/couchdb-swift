@@ -1,7 +1,7 @@
 # CouchDB Client for Swift
 
 <p align="center">
-	<a href="https://github.com/makoni/couchdb-swift">
+    <a href="https://github.com/makoni/couchdb-swift">
         <img src="https://spaceinbox.me/images/appicons/5cff134d1bb4a2e90faea5cf4e0002a2.svg?31-a992eba6ad7e189f4b3e0988936056ca" height="200">
     </a>
 </p>
@@ -144,8 +144,12 @@ print(dbs)
 
 ### Find Documents in a Database by Selector
 ```swift
-let selector = ["selector": ["name": "Sam"]]
-let docs: [ExpectedDoc] = try await couchDBClient.find(in: "databaseName", selector: selector)
+let selector: [String: MangoValue] = [
+    "type": .string("user"),
+    "age": .comparison(.greaterThan(.int(30)))
+]
+let query = MangoQuery(selector: selector, fields: ["name", "email"], sort: [["name": .asc]], limit: 10, skip: 0)
+let docs: [ExpectedDoc] = try await couchDBClient.find(inDB: "databaseName", query: query)
 print(docs)
 ```
 

@@ -32,7 +32,7 @@ public struct MangoQuery: Codable, Sendable {
     public let fields: [String]?
     
     /// An array of sort definitions.
-    public let sort: [[String: String]]?
+    public let sort: [[String: MangoSortDirection]]?
     
     /// The maximum number of results to return.
     public let limit: Int?
@@ -63,7 +63,7 @@ public struct MangoQuery: Codable, Sendable {
     public init(
         selector: [String: MangoValue],
         fields: [String]? = nil,
-        sort: [[String: String]]? = nil,
+        sort: [[String: MangoSortDirection]]? = nil,
         limit: Int? = nil,
         skip: Int? = nil,
         useIndex: String? = nil
@@ -75,6 +75,12 @@ public struct MangoQuery: Codable, Sendable {
         self.skip = skip
         self.useIndex = useIndex
     }
+}
+
+/// An enum representing the sort direction in Mango queries.
+public enum MangoSortDirection: String, Codable, Sendable {
+    case asc
+    case desc
 }
 
 /// An enum representing the possible values in a Mango query selector.
