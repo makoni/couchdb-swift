@@ -8,12 +8,12 @@ Task {
     let query = MangoQuery(
         selector: [
             "type": .string("user"),
-            "age": .dictionary(["$gt": .int(30)])
+            "age": .comparison(.greaterThan(.int(30)))
         ],
-        fields: ["name", "email"],
-        sort: [["name": "asc"]],
+        sort: [["name": .asc]],
         limit: 10,
         skip: 0,
+        fields: ["name", "email"],
         useIndex: "my-index"
     )
 

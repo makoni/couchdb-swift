@@ -1,5 +1,14 @@
 // Advanced Mango Queries Step 1: Building Selectors
-let selector: [String: MangoValue] = [
-    "type": .string("user"),
-    "age": .dictionary(["$gt": .int(30)])
-]
+struct User: Codable {
+    let name: String
+    let email: String
+}
+
+Task {
+    let query = MangoQuery(
+        selector: [
+            "type": .string("user"),
+            "age": .comparison(.greaterThan(.int(30)))
+        ]
+    )
+}
