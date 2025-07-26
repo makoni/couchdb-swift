@@ -36,7 +36,7 @@ public struct MangoIndex: Codable, Sendable {
 	///   - type: The type of the index.
 	///   - def: The definition of the index.
 	public init(
-		ddoc: String,
+		ddoc: String? = nil,
 		name: String,
 		type: String,
 		def: IndexDefinition
