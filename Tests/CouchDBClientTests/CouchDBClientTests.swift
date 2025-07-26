@@ -399,11 +399,6 @@ struct CouchDBClientTests {
 		)
 	}
 
-	@Test("Cleanup: Delete Test Database")
-	func deleteDB() async throws {
-		try await couchDBClient.deleteDB(testsDB)
-	}
-
 	@Test("Create DB with invalid name")
 	func createDB_invalidName() async throws {
 		let error = await #expect(throws: CouchDBClientError.self) {
@@ -418,23 +413,6 @@ struct CouchDBClientTests {
 				default: return false
 				}
 			}(), "Expected CouchDBClientError.insertError")
-	}
-
-	@Test("Update non existing document")
-	func update_non_existing_document() async throws {
-		let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
-		let error = await #expect(throws: CouchDBClientError.self) {
-			_ = try await couchDBClient.update(dbName: testsDB, doc: doc)
-		}
-
-		#expect(
-			{
-				switch error {
-				case .deleteError(let error):
-					return error.error == "not_found"
-				default: return false
-				}
-			}(), "Expected CouchDBClientError.deleteError")
 	}
 
 	@Test("Delete non existing document with doc")
@@ -470,4 +448,26 @@ struct CouchDBClientTests {
 				}
 			}(), "Expected CouchDBClientError.revMissing")
 	}
+
+    @Test("Cleanup: Delete Test Database")
+    func deleteDB() async throws {
+        try await couchDBClient.deleteDB(testsDB)
+    }
+
+    @Test("Update non existing document")
+    func update_non_existing_document() async throws {
+        let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
+        let error = await #expect(throws: CouchDBClientError.self) {
+            _ = try await couchDBClient.update(dbName: testsDB, doc: doc)
+        }
+
+        #expect(
+            {
+                switch error {
+                case .deleteError(let error):
+                    return error.error == "not_found"
+                default: return false
+                }
+            }(), "Expected CouchDBClientError.deleteError")
+    }
 }
