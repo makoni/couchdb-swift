@@ -217,8 +217,9 @@ struct CouchDBClientTests {
 			body: HTTPClientRequest.Body.bytes(ByteBuffer(data: insertEncodedData))
 		)
 
-		let selector = ["selector": ["name": "Sam"]]
-		let docs: [ExpectedDoc] = try await couchDBClient.find(inDB: testsDB, selector: selector)
+		let selector: [String: MangoValue] = ["name": .string("Sam")]
+		let query = MangoQuery(selector: selector)
+		let docs: [ExpectedDoc] = try await couchDBClient.find(inDB: testsDB, query: query)
 
 		#expect(docs.count > 0)
 		let id = try #require(docs.first?._id)
@@ -381,10 +382,11 @@ struct CouchDBClientTests {
 			body: .bytes(ByteBuffer(data: insertEncodedData))
 		)
 
-		let selector = ["selector": ["name": "DateTest"]]
+		let selector: [String: MangoValue] = ["name": .string("DateTest")]
+		let query = MangoQuery(selector: selector)
 		let docs: [ExpectedDoc] = try await couchDBClient.find(
 			inDB: testsDB,
-			selector: selector,
+			query: query,
 			dateDecodingStrategy: .iso8601
 		)
 

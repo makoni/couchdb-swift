@@ -537,18 +537,18 @@ public actor CouchDBClient {
 		let body = response.body
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
 
-        if response.status == .notFound {
-            var bytes = try await body.collect(upTo: expectedBytes)
-            guard let data = bytes.readData(length: bytes.readableBytes) else {
-                throw CouchDBClientError.noData
-            }
+		if response.status == .notFound {
+			var bytes = try await body.collect(upTo: expectedBytes)
+			guard let data = bytes.readData(length: bytes.readableBytes) else {
+				throw CouchDBClientError.noData
+			}
 
-            let decoder = JSONDecoder()
-            if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-                throw CouchDBClientError.notFound(error: couchdbError)
-            }
-            throw CouchDBClientError.unknownResponse
-        }
+			let decoder = JSONDecoder()
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw CouchDBClientError.notFound(error: couchdbError)
+			}
+			throw CouchDBClientError.unknownResponse
+		}
 
 		response.body = .bytes(
 			try await body.collect(upTo: expectedBytes)
@@ -671,10 +671,72 @@ public actor CouchDBClient {
 	///
 	/// - Note: Ensure that the CouchDB server is running and accessible before calling this function.
 	///   Handle thrown errors appropriately, especially for data decoding issues or query mismatches.
+	@available(*, deprecated, message: "Use find(inDB:query:) instead")
 	public func find<T: CouchDBRepresentable>(inDB dbName: String, selector: Codable, dateDecodingStrategy: JSONDecoder.DateDecodingStrategy = .secondsSince1970, eventLoopGroup: EventLoopGroup? = nil) async throws -> [T] {
 		let encoder = JSONEncoder()
 		let selectorData = try encoder.encode(selector)
 		let requestBody: HTTPClientRequest.Body = .bytes(ByteBuffer(data: selectorData))
+
+		let findResponse = try await find(
+			inDB: dbName,
+			body: requestBody,
+			eventLoopGroup: eventLoopGroup
+		)
+
+		let body = findResponse.body
+		let expectedBytes = findResponse.headers.first(name: "content-length").flatMap(Int.init)
+		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+
+		guard let data = bytes.readData(length: bytes.readableBytes) else {
+			throw CouchDBClientError.noData
+		}
+
+		let decoder = JSONDecoder()
+		decoder.dateDecodingStrategy = dateDecodingStrategy
+
+		do {
+			let doc = try decoder.decode(CouchDBFindResponse<T>.self, from: data)
+			return doc.docs
+		} catch let parsingError {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw CouchDBClientError.findError(error: couchdbError)
+			}
+			throw parsingError
+		}
+	}
+
+	/// Performs a query to find documents in a database on the CouchDB server that match the given selector.
+	///
+	/// This asynchronous generic function sends a query to the CouchDB server to search for documents in a specific database
+	/// based on the criteria defined by the selector. The resulting documents are decoded into an array of the specified
+	/// `CouchDBRepresentable` type. It supports using a custom `EventLoopGroup` for network operations and allows the specification
+	/// of a custom date decoding strategy.
+	///
+	/// - Parameters:
+	///   - dbName: The name of the database in which to perform the query.
+	///   - query: A `MangoQuery` object that defines the criteria for selecting documents.
+	///   - dateDecodingStrategy: The date decoding strategy to use for decoding dates within the documents. Defaults to `.secondsSince1970`.
+	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
+	///     If not provided, the function defaults to using a shared instance of `HTTPClient`.
+	/// - Returns: An array of documents of type `T`, where `T` conforms to `CouchDBRepresentable`.
+	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.noData` if the response lacks required data, `.findError` if decoding fails, with the underlying `CouchDBError`.
+	///
+	/// ### Example Usage:
+	/// ```swift
+	/// let query = MangoQuery(selector: ["name": .string("Sam")])
+	/// let documents: [MyDocumentType] = try await couchDBClient.find(
+	///     inDB: "myDatabase",
+	///     query: query
+	/// )
+	/// print(documents)
+	/// ```
+	///
+	/// - Note: Ensure that the CouchDB server is running and accessible before calling this function.
+	///   Handle thrown errors appropriately, especially for data decoding issues or query mismatches.
+	public func find<T: CouchDBRepresentable>(inDB dbName: String, query: MangoQuery, dateDecodingStrategy: JSONDecoder.DateDecodingStrategy = .secondsSince1970, eventLoopGroup: EventLoopGroup? = nil) async throws -> [T] {
+		let encoder = JSONEncoder()
+		let queryData = try encoder.encode(query)
+		let requestBody: HTTPClientRequest.Body = .bytes(ByteBuffer(data: queryData))
 
 		let findResponse = try await find(
 			inDB: dbName,
@@ -1279,6 +1341,164 @@ public actor CouchDBClient {
 		guard let rev = doc._rev else { throw CouchDBClientError.revMissing }
 
 		return try await delete(fromDb: dbName, uri: doc._id, rev: rev, eventLoopGroup: eventLoopGroup)
+	}
+
+	/// Lists all Mango indexes in a specified database.
+	///
+	/// - Parameters:
+	///   - dbName: The name of the database.
+	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
+	/// - Returns: A `MangoIndexesResponse` containing the list of indexes.
+	/// - Throws: A `CouchDBClientError` if the operation fails.
+	public func listIndexes(inDB dbName: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> MangoIndexesResponse {
+		try await authIfNeed(eventLoopGroup: eventLoopGroup)
+
+		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
+
+		defer {
+			if eventLoopGroup != nil {
+				DispatchQueue.main.async {
+					try? httpClient.syncShutdown()
+				}
+			}
+		}
+
+		let url = buildUrl(path: "/\(dbName)/_index")
+		let request = try buildRequest(fromUrl: url, withMethod: .GET)
+		let response = try await httpClient.execute(request, timeout: .seconds(requestsTimeout))
+
+		if response.status == .unauthorized {
+			throw CouchDBClientError.unauthorized
+		}
+
+		let body = response.body
+		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
+		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+
+		guard let data = bytes.readData(length: bytes.readableBytes) else {
+			throw CouchDBClientError.noData
+		}
+
+		let decoder = JSONDecoder()
+		do {
+			let indexesResponse = try decoder.decode(MangoIndexesResponse.self, from: data)
+			return indexesResponse
+		} catch let parsingError {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw CouchDBClientError.getError(error: couchdbError)
+			}
+			throw parsingError
+		}
+	}
+
+	/// Creates a new Mango index in a specified database.
+	///
+	/// - Parameters:
+	///   - dbName: The name of the database.
+	///   - index: The `MangoIndex` to create.
+	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
+	/// - Returns: A `CouchUpdateResponse` indicating the result of the operation.
+	/// - Throws: A `CouchDBClientError` if the operation fails.
+	public func createIndex(inDB dbName: String, index: MangoIndex, eventLoopGroup: EventLoopGroup? = nil) async throws -> CouchUpdateResponse {
+		try await authIfNeed(eventLoopGroup: eventLoopGroup)
+
+		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
+
+		defer {
+			if eventLoopGroup != nil {
+				DispatchQueue.main.async {
+					try? httpClient.syncShutdown()
+				}
+			}
+		}
+
+		let url = buildUrl(path: "/\(dbName)/_index")
+		let encoder = JSONEncoder()
+		let indexData = try encoder.encode(index)
+		let requestBody: HTTPClientRequest.Body = .bytes(ByteBuffer(data: indexData))
+
+		var request = try buildRequest(fromUrl: url, withMethod: .POST)
+		request.body = requestBody
+
+		let response = try await httpClient.execute(request, timeout: .seconds(requestsTimeout))
+
+		if response.status == .unauthorized {
+			throw CouchDBClientError.unauthorized
+		}
+
+		let body = response.body
+		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
+		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+
+		guard let data = bytes.readData(length: bytes.readableBytes) else {
+			throw CouchDBClientError.noData
+		}
+
+		let decoder = JSONDecoder()
+		do {
+			let updateResponse = try decoder.decode(CouchUpdateResponse.self, from: data)
+			return updateResponse
+		} catch let parsingError {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw CouchDBClientError.insertError(error: couchdbError)
+			}
+			throw parsingError
+		}
+	}
+
+	/// Explains a Mango query in a specified database.
+	///
+	/// - Parameters:
+	///   - dbName: The name of the database.
+	///   - query: The `MangoQuery` to explain.
+	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
+	/// - Returns: A `MangoExplainResponse` containing the query execution plan.
+	/// - Throws: A `CouchDBClientError` if the operation fails.
+	public func explain(inDB dbName: String, query: MangoQuery, eventLoopGroup: EventLoopGroup? = nil) async throws -> MangoExplainResponse {
+		try await authIfNeed(eventLoopGroup: eventLoopGroup)
+
+		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
+
+		defer {
+			if eventLoopGroup != nil {
+				DispatchQueue.main.async {
+					try? httpClient.syncShutdown()
+				}
+			}
+		}
+
+		let url = buildUrl(path: "/\(dbName)/_explain")
+		let encoder = JSONEncoder()
+		let queryData = try encoder.encode(query)
+		let requestBody: HTTPClientRequest.Body = .bytes(ByteBuffer(data: queryData))
+
+		var request = try buildRequest(fromUrl: url, withMethod: .POST)
+		request.body = requestBody
+
+		let response = try await httpClient.execute(request, timeout: .seconds(requestsTimeout))
+
+		if response.status == .unauthorized {
+			throw CouchDBClientError.unauthorized
+		}
+
+		let body = response.body
+		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
+		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+
+		guard let data = bytes.readData(length: bytes.readableBytes) else {
+			throw CouchDBClientError.noData
+		}
+
+		let decoder = JSONDecoder()
+		do {
+			let explainResponse = try decoder.decode(MangoExplainResponse.self, from: data)
+			return explainResponse
+		} catch let parsingError {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw CouchDBClientError.getError(error: couchdbError)
+			}
+			throw parsingError
+		}
 	}
 }
 
