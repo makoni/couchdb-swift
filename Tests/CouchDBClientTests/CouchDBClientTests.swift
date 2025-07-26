@@ -282,27 +282,29 @@ struct CouchDBClientTests {
 			}(), "Expected CouchDBClientError.notFound")
 	}
 
-//	@Test("Update document without updating rev. Should throw conflict")
-//	func update_document_conflict() async throws {
-//		let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
-//		var insertedDoc: ExpectedDoc!
-//
-//		let error = await #expect(throws: CouchDBClientError.self) {
-//			insertedDoc = try await couchDBClient.insert(dbName: testsDB, doc: doc)
-//			_ = try await couchDBClient.update(dbName: testsDB, doc: doc)
-//		}
-//
-//		#expect(
-//			{
-//				switch error {
-//				case .conflictError(let error):
-//					return error.error == "conflict"
-//				default: return false
-//				}
-//			}(), "Expected CouchDBClientError.conflictError")
-//
-//		_ = try await couchDBClient.delete(fromDb: testsDB, doc: insertedDoc)
-//	}
+	@Test("Update document without updating rev. Should throw conflict")
+	func update_document_conflict() async throws {
+		let doc = ExpectedDoc(name: "should not exist", _id: Foundation.UUID().uuidString, _rev: "1-abc")
+		var insertedDoc: ExpectedDoc? = nil
+
+		let error = await #expect(throws: CouchDBClientError.self) {
+			insertedDoc = try await couchDBClient.insert(dbName: testsDB, doc: doc)
+			_ = try await couchDBClient.update(dbName: testsDB, doc: doc)
+		}
+
+		#expect(
+			{
+				switch error {
+				case .conflictError(let error):
+					return error.error == "conflict"
+				default: return false
+				}
+			}(), "Expected CouchDBClientError.conflictError")
+
+		if let docToDelete = insertedDoc {
+			_ = try await couchDBClient.delete(fromDb: testsDB, doc: docToDelete)
+		}
+	}
 
 	@Test("Delete non existing document. Should throw deleteError")
 	func delete_non_existing_document() async throws {
