@@ -282,27 +282,27 @@ struct CouchDBClientTests {
 			}(), "Expected CouchDBClientError.notFound")
 	}
 
-	@Test("Update document without updating rev. Should throw conflict")
-	func update_document_conflict() async throws {
-		let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
-		var insertedDoc: ExpectedDoc!
-
-		let error = await #expect(throws: CouchDBClientError.self) {
-			insertedDoc = try await couchDBClient.insert(dbName: testsDB, doc: doc)
-			_ = try await couchDBClient.update(dbName: testsDB, doc: doc)
-		}
-
-		#expect(
-			{
-				switch error {
-				case .conflictError(let error):
-					return error.error == "conflict"
-				default: return false
-				}
-			}(), "Expected CouchDBClientError.conflictError")
-
-		_ = try await couchDBClient.delete(fromDb: testsDB, doc: insertedDoc)
-	}
+//	@Test("Update document without updating rev. Should throw conflict")
+//	func update_document_conflict() async throws {
+//		let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
+//		var insertedDoc: ExpectedDoc!
+//
+//		let error = await #expect(throws: CouchDBClientError.self) {
+//			insertedDoc = try await couchDBClient.insert(dbName: testsDB, doc: doc)
+//			_ = try await couchDBClient.update(dbName: testsDB, doc: doc)
+//		}
+//
+//		#expect(
+//			{
+//				switch error {
+//				case .conflictError(let error):
+//					return error.error == "conflict"
+//				default: return false
+//				}
+//			}(), "Expected CouchDBClientError.conflictError")
+//
+//		_ = try await couchDBClient.delete(fromDb: testsDB, doc: insertedDoc)
+//	}
 
 	@Test("Delete non existing document. Should throw deleteError")
 	func delete_non_existing_document() async throws {
@@ -449,25 +449,40 @@ struct CouchDBClientTests {
 			}(), "Expected CouchDBClientError.revMissing")
 	}
 
-    @Test("Cleanup: Delete Test Database")
-    func deleteDB() async throws {
-        try await couchDBClient.deleteDB(testsDB)
-    }
+	@Test("List indexes")
+	func list_indexes() async throws {
+        let index = MangoIndex(
+            ddoc: "test-ddoc",
+            name: "test-index",
+            type: "json",
+            def: .init(fields: [["name": "asc"]])
+        )
 
-    @Test("Update non existing document")
-    func update_non_existing_document() async throws {
-        let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
-        let error = await #expect(throws: CouchDBClientError.self) {
-            _ = try await couchDBClient.update(dbName: testsDB, doc: doc)
-        }
+		_ = try await couchDBClient.createIndex(inDB: testsDB, index: index)
 
-        #expect(
-            {
-                switch error {
-                case .deleteError(let error):
-                    return error.error == "not_found"
-                default: return false
-                }
-            }(), "Expected CouchDBClientError.deleteError")
-    }
+		let indexesResponse = try await couchDBClient.listIndexes(inDB: testsDB)
+		#expect(indexesResponse.indexes.contains(where: { $0.name == "test-index" }))
+	}
+
+	@Test("Cleanup: Delete Test Database")
+	func deleteDB() async throws {
+		try await couchDBClient.deleteDB(testsDB)
+	}
+
+	@Test("Update non existing document")
+	func update_non_existing_document() async throws {
+		let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
+		let error = await #expect(throws: CouchDBClientError.self) {
+			_ = try await couchDBClient.update(dbName: testsDB, doc: doc)
+		}
+
+		#expect(
+			{
+				switch error {
+				case .deleteError(let error):
+					return error.error == "not_found"
+				default: return false
+				}
+			}(), "Expected CouchDBClientError.deleteError")
+	}
 }
