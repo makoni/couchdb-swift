@@ -7,6 +7,19 @@
 
 import Foundation
 
+/// A struct representing a sort field and direction for Mango queries.
+///
+/// Use `MangoSortField` to specify the field and sort direction (ascending or descending)
+/// when constructing a MangoQuery. This enables type-safe and self-documenting sort definitions.
+///
+/// Example:
+/// ```swift
+/// let sortField = MangoSortField(field: "name", direction: .asc)
+/// let query = MangoQuery(
+///     selector: ["type": .string("user")],
+///     sort: [sortField]
+/// )
+/// ```
 public struct MangoSortField: Codable, Sendable {
 	public let field: String
 	public let direction: MangoSortDirection
