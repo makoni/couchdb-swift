@@ -122,9 +122,12 @@ public struct MangoQuery: Codable, Sendable {
 		selector = try container.decode([String: MangoValue].self, forKey: .selector)
 		fields = try container.decodeIfPresent([String].self, forKey: .fields)
 		if let sortArray = try container.decodeIfPresent([[String: MangoSortDirection]].self, forKey: .sort) {
-			sort = sortArray.map { dict in
+			sort = try sortArray.map { dict in
 				guard let (field, direction) = dict.first else {
-					fatalError("Invalid sort dictionary")
+					throw DecodingError.dataCorrupted(DecodingError.Context(
+						codingPath: container.codingPath,
+						debugDescription: "Invalid sort dictionary: expected a field and direction."
+					))
 				}
 				return MangoSortField(field: field, direction: direction)
 			}
