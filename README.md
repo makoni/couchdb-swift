@@ -1,37 +1,50 @@
 # CouchDB Client for Swift
 
 <p align="center">
-	<a href="https://github.com/makoni/couchdb-swift">
+    <a href="https://github.com/makoni/couchdb-swift">
         <img src="https://spaceinbox.me/images/appicons/5cff134d1bb4a2e90faea5cf4e0002a2.svg?31-a992eba6ad7e189f4b3e0988936056ca" height="200">
     </a>
 </p>
 
 [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fmakoni%2Fcouchdb-swift%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/makoni/couchdb-swift)
 [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fmakoni%2Fcouchdb-swift%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/makoni/couchdb-swift)
-[![Vapor 4](https://img.shields.io/badge/vapor-4-blue.svg?style=flat)](https://vapor.codes)
 
 [![Build on macOS](https://github.com/makoni/couchdb-swift/actions/workflows/build-macos.yml/badge.svg?branch=master)](https://github.com/makoni/couchdb-swift/actions/workflows/build-macos.yml)
 [![Build on Ubuntu](https://github.com/makoni/couchdb-swift/actions/workflows/build-ubuntu.yml/badge.svg?branch=master)](https://github.com/makoni/couchdb-swift/actions/workflows/build-ubuntu.yml)
 [![Test on Ubuntu](https://github.com/makoni/couchdb-swift/actions/workflows/test-ubuntu.yml/badge.svg?branch=master)](https://github.com/makoni/couchdb-swift/actions/workflows/test-ubuntu.yml)
 
 
-
 This is a simple library to work with CouchDB in Swift.
 
-- The latest version supports strict concurrency: `CouchDBClient` is an actor and requires Swift 6.0 or newer. For Swift 5, you can still use version `1.7.0`.
-- Compatible with Vapor 4.
-- Version `1.0.0` can be used with Vapor 4 without `async/await`; Swift 5.3 is required.
-- You can use the old version for Vapor 3 by checking out the `vapor3` branch or using versions earlier than `1.0.0`.
-
-The only dependency for this library is [`async-http-client`](https://github.com/swift-server/async-http-client).
-
 ---
+
+## Features
+
+- Strict concurrency: `CouchDBClient` is an actor (Swift 6+)
+- Attachments API: upload, download, delete files/images
+- Mango queries and indexes
+- Document CRUD (create, read, update, delete)
+- Vapor and Hummingbird integration
+- Robust error handling
+
+## Supported Platforms & Swift Versions
+
+- Swift 6.0+ (actor-based concurrency)
+- Swift 5.x (use version 1.7.0)
+- macOS, Linux (tested on Ubuntu)
+- Compatible with Vapor 4 and Hummingbird
+
+## Testing
+
+Comprehensive test suite covers all major APIs, including Attachments. Run tests with:
+
+```bash
+COUCHDB_PASS=myPassword swift test
+```
 
 ## Documentation
 
 Find documentation, examples, and tutorials [here](https://spaceinbox.me/docs/couchdbclient/documentation/couchdbclient).
-
----
 
 ## Installation
 
@@ -44,8 +57,6 @@ dependencies: [
     .package(url: "https://github.com/makoni/couchdb-swift.git", from: "2.1.0"),
 ]
 ```
-
----
 
 ## Initialization
 
@@ -79,6 +90,43 @@ let couchDBClient = CouchDBClient(config: config)
 ```
 
 ## Usage examples
+
+### Uploading an Attachment
+
+```swift
+let response = try await couchDBClient.uploadAttachment(
+    dbName: "myDatabase",
+    docId: "docid",
+    attachmentName: "image.png",
+    data: imageData,
+    contentType: "image/png",
+    rev: "currentRev"
+)
+print("Attachment uploaded, new revision: \(response.rev)")
+```
+
+### Downloading an Attachment
+
+```swift
+let attachmentData = try await couchDBClient.downloadAttachment(
+    dbName: "myDatabase",
+    docId: "docid",
+    attachmentName: "image.png"
+)
+print("Downloaded attachment, size: \(attachmentData.count) bytes")
+```
+
+### Deleting an Attachment
+
+```swift
+let deleteResponse = try await couchDBClient.deleteAttachment(
+    dbName: "myDatabase",
+    docId: "docid",
+    attachmentName: "image.png",
+    rev: "currentRev"
+)
+print("Attachment deleted, new revision: \(deleteResponse.rev)")
+```
 
 ### Define Your Document Model
 
@@ -144,11 +192,20 @@ print(dbs)
 
 ### Find Documents in a Database by Selector
 ```swift
-let selector = ["selector": ["name": "Sam"]]
-let docs: [ExpectedDoc] = try await couchDBClient.find(in: "databaseName", selector: selector)
+let selector: [String: MangoValue] = [
+    "type": .string("user"),
+    "age": .comparison(.greaterThan(.int(30)))
+]
+let query = MangoQuery(selector: selector, fields: ["name", "email"], sort: [MangoSortField(field: "name", direction: .asc)], limit: 10, skip: 0)
+let docs: [ExpectedDoc] = try await couchDBClient.find(inDB: "databaseName", query: query)
 print(docs)
 ```
 
 ### Using with Vapor
 Here's a simple [tutorial](https://spaceinbox.me/docs/couchdbclient/tutorials/couchdbclient/vaportutorial) for Vapor.
 
+---
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

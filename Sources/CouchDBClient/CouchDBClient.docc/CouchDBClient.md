@@ -31,7 +31,7 @@ Built on top of [AsyncHTTPClient](https://github.com/swift-server/async-http-cli
 - **Document Operations**:
   - Get a document by ID or retrieve documents using a view.
   - Insert or update documents.
-  - Find documents using a selector.
+  - Find documents using a MangoQuery and type-safe selectors (see MangoValue and MangoComparison).
   - Delete documents.
 
 - **Authorization**:

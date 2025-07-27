@@ -1,0 +1,40 @@
+@Tutorial(time: 5) {
+    @Intro(title: "Advanced Mango Queries") {
+        Learn how to build complex selectors, use sorting, pagination, projections, and optimize queries with indexes in CouchDB.
+        
+        @Image(source: logo.svg, alt: "Advanced Mango Queries illustration")
+    }
+
+    @Section(title: "Building Selectors and Queries") {
+        @ContentAndMedia {
+            Advanced Mango queries allow you to filter, sort, and project CouchDB documents using expressive selectors and indexes. The following steps will guide you through building selectors, adding sort/limit/skip, using fields for projections, and optimizing queries with indexes.
+        }
+        
+        @Steps {
+            @Step {
+                Use nested dictionaries and operators for selectors ([CouchDB Mango Query Docs](https://docs.couchdb.org/en/stable/api/database/find.html)).
+                @Code(name: "main.swift", file: AdvancedMangoQueries-1.swift)
+            }
+            
+            @Step {
+                Add sort, limit, and skip for pagination.
+                @Code(name: "main.swift", file: AdvancedMangoQueries-2.swift)
+            }
+            
+            @Step {
+                Use fields for projections.
+                @Code(name: "main.swift", file: AdvancedMangoQueries-3.swift)
+            }
+            
+            @Step {
+                Create indexes for query optimization.
+                @Code(name: "main.swift", file: AdvancedMangoQueries-4.swift)
+            }
+
+            @Step {
+                Execute the Mango query using CouchDBClient's `find` method to retrieve results from the database.
+                @Code(name: "main.swift", file: AdvancedMangoQueries-5.swift)
+            }
+        }
+    }
+}
