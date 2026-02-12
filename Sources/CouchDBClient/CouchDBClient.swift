@@ -1759,10 +1759,13 @@ internal extension CouchDBClient {
 		var request = HTTPClientRequest(url: url)
 		request.method = .POST
 		request.headers.add(name: "Content-Type", value: "application/x-www-form-urlencoded")
-		let encodedUserName = userName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-		let encodedPassword = userPassword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-		let dataString = "name=\(encodedUserName)&password=\(encodedPassword)"
-		request.body = .bytes(ByteBuffer(string: dataString))
+		var bodyComponents = URLComponents()
+		bodyComponents.queryItems = [
+			URLQueryItem(name: "name", value: userName),
+			URLQueryItem(name: "password", value: userPassword)
+		]
+		let bodyString = bodyComponents.percentEncodedQuery ?? ""
+		request.body = .bytes(ByteBuffer(string: bodyString))
 
 		let response =
 			try await httpClient
@@ -1781,17 +1784,13 @@ internal extension CouchDBClient {
 
 		if let httpCookie = HTTPClient.Cookie(header: cookie, defaultDomain: self.couchHost) {
 			if httpCookie.expires == nil {
-				let formatter = DateFormatter()
-				formatter.dateFormat = "E, dd-MMM-yyyy HH:mm:ss z"
-
 				let expiresString = cookie.split(separator: ";")
 					.map({ $0.trimmingCharacters(in: .whitespaces) })
 					.first(where: { $0.hasPrefix("Expires=") })?
 					.split(separator: "=").last
 
 				if let expiresString = expiresString {
-					let expires = formatter.date(from: String(expiresString))
-					sessionCookieExpires = expires
+					sessionCookieExpires = Self.parseCookieExpires(String(expiresString))
 				}
 			} else {
 				sessionCookieExpires = httpCookie.expires
@@ -1823,5 +1822,24 @@ internal extension CouchDBClient {
 		request.method = method
 		request.headers = headers
 		return request
+	}
+
+	static func parseCookieExpires(_ expiresString: String) -> Date? {
+		// Common cookie Expires formats seen in the wild.
+		let formats = [
+			"E, dd MMM yyyy HH:mm:ss zzz",
+			"E, dd-MMM-yyyy HH:mm:ss zzz",
+			"E, dd-MMM-yyyy HH:mm:ss z"
+		]
+		for format in formats {
+			let formatter = DateFormatter()
+			formatter.locale = Locale(identifier: "en_US_POSIX")
+			formatter.timeZone = TimeZone(secondsFromGMT: 0)
+			formatter.dateFormat = format
+			if let date = formatter.date(from: expiresString) {
+				return date
+			}
+		}
+		return nil
 	}
 }

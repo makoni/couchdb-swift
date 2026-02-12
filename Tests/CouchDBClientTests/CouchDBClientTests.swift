@@ -72,7 +72,7 @@ struct CouchDBClientTests {
 		var testDoc = ExpectedDoc(name: "test name")
 		testDoc = try await couchDBClient.insert(dbName: testsDB, doc: testDoc)
 		let expectedInsertId = testDoc._id
-		let expectedInsertRev = testDoc._rev!
+		let expectedInsertRev = try #require(testDoc._rev)
 
 		testDoc = try await couchDBClient.get(fromDB: testsDB, uri: expectedInsertId)
 
@@ -85,9 +85,11 @@ struct CouchDBClientTests {
 		let getResponse2 = try await couchDBClient.get(fromDB: testsDB, uri: expectedInsertId)
 		let expectedBytes2 = getResponse2.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
 		var bytes2 = try await getResponse2.body.collect(upTo: expectedBytes2)
-		let data2 = bytes2.readData(length: bytes2.readableBytes)
+		guard let data2 = bytes2.readData(length: bytes2.readableBytes) else {
+			throw CouchDBClientError.noData
+		}
 
-		testDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data2!)
+		testDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data2)
 		#expect(expectedName == testDoc.name)
 
 		let response = try await couchDBClient.delete(fromDb: testsDB, doc: testDoc)
@@ -116,8 +118,10 @@ struct CouchDBClientTests {
 		let expectedBytes = getResponse.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
 		var bytes = try await getResponse.body.collect(upTo: expectedBytes)
 
-		let data = bytes.readData(length: bytes.readableBytes)
-		testDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data!)
+		guard let data = bytes.readData(length: bytes.readableBytes) else {
+			throw CouchDBClientError.noData
+		}
+		testDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data)
 
 		#expect(expectedName == testDoc.name)
 		#expect(testDoc._rev == expectedInsertRev)
@@ -143,15 +147,18 @@ struct CouchDBClientTests {
 		let expectedBytes2 = getResponse2.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
 		var bytes2 = try await getResponse2.body.collect(upTo: expectedBytes2)
 
-		let data2 = bytes2.readData(length: bytes2.readableBytes)
-		testDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data2!)
+		guard let data2 = bytes2.readData(length: bytes2.readableBytes) else {
+			throw CouchDBClientError.noData
+		}
+		testDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data2)
 
 		#expect(expectedName == testDoc.name)
 
+		let rev = try #require(testDoc._rev)
 		let deleteResponse = try await couchDBClient.delete(
 			fromDb: testsDB,
 			uri: testDoc._id,
-			rev: testDoc._rev!
+			rev: rev
 		)
 		#expect(deleteResponse.ok == true)
 		#expect(!deleteResponse.id.isEmpty)
@@ -222,13 +229,15 @@ struct CouchDBClientTests {
 		let docs: [ExpectedDoc] = try await couchDBClient.find(inDB: testsDB, query: query)
 
 		#expect(docs.count > 0)
-		let id = try #require(docs.first?._id)
+		let firstDoc = try #require(docs.first)
+		let id = firstDoc._id
 		#expect(id == insertResponse.id)
 
+		let rev = try #require(firstDoc._rev)
 		_ = try await couchDBClient.delete(
 			fromDb: testsDB,
-			uri: docs.first!._id,
-			rev: docs.first!._rev!
+			uri: firstDoc._id,
+			rev: rev
 		)
 	}
 
