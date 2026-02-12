@@ -90,10 +90,11 @@ struct MangoQueryTests {
 				"boolValue": true,
 				"arrayValue": [1, "two", true]
 			}
-			""".data(using: .utf8)!
+			"""
+		let jsonData = try #require(json.data(using: .utf8))
 
 		let decoder = JSONDecoder()
-		let dictionary = try decoder.decode([String: MangoValue].self, from: json)
+		let dictionary = try decoder.decode([String: MangoValue].self, from: jsonData)
 
 		#expect(dictionary["stringValue"] != nil)
 		#expect(dictionary["intValue"] != nil)
