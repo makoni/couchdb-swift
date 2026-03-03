@@ -2,7 +2,7 @@
 
 <p align="center">
     <a href="https://github.com/makoni/couchdb-swift">
-        <img src="https://spaceinbox.me/images/appicons/5cff134d1bb4a2e90faea5cf4e0002a2.svg?31-a992eba6ad7e189f4b3e0988936056ca" height="200">
+        <img src="https://spaceinbox.me/images/couchdb-client-for-vapor.webp" width="100%">
     </a>
 </p>
 
