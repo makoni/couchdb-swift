@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import NIOCore  // For ByteBuffer
+import NIOPosix
 @testable import CouchDBClient
 
 fileprivate let config = CouchDBClient.Config(
@@ -74,6 +75,21 @@ struct AttachmentsAPITests {
 			attachmentName: testAttachmentName
 		)
 		#expect(downloadedData == uploadedData)
+	}
+
+	@Test("Download attachment providing an EventLoopGroup")
+	func downloadAttachment_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		let downloadedData = try await couchDBClient.downloadAttachment(
+			dbName: testsDB,
+			docId: testDocId,
+			attachmentName: testAttachmentName,
+			eventLoopGroup: group
+		)
+
+		#expect(downloadedData == embeddedTestImageData)
+
+		try await group.shutdownGracefully()
 	}
 
 	@Test("Delete attachment from document")

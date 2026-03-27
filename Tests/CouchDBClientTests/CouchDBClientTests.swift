@@ -393,6 +393,98 @@ struct CouchDBClientTests {
 		try await group.shutdownGracefully()
 	}
 
+	@Test("Raw get buffers response body when providing an EventLoopGroup")
+	func raw_get_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		let testDoc = ExpectedDoc(name: "EventLoop Raw Get")
+		let insertResponse = try await couchDBClient.insert(dbName: testsDB, doc: testDoc)
+
+		let response = try await couchDBClient.get(
+			fromDB: testsDB,
+			uri: insertResponse._id,
+			eventLoopGroup: group
+		)
+		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
+		var bytes = try await response.body.collect(upTo: expectedBytes)
+		let data = try #require(bytes.readData(length: bytes.readableBytes))
+		let fetchedDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data)
+
+		#expect(fetchedDoc._id == insertResponse._id)
+		#expect(fetchedDoc.name == testDoc.name)
+
+		_ = try await couchDBClient.delete(fromDb: testsDB, doc: insertResponse)
+		try await group.shutdownGracefully()
+	}
+
+	@Test("Typed get decodes document when providing an EventLoopGroup")
+	func typed_get_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		let insertedDoc = try await couchDBClient.insert(
+			dbName: testsDB,
+			doc: ExpectedDoc(name: "EventLoop Typed Get")
+		)
+
+		let fetchedDoc: ExpectedDoc = try await couchDBClient.get(
+			fromDB: testsDB,
+			uri: insertedDoc._id,
+			eventLoopGroup: group
+		)
+
+		#expect(fetchedDoc._id == insertedDoc._id)
+		#expect(fetchedDoc._rev == insertedDoc._rev)
+		#expect(fetchedDoc.name == insertedDoc.name)
+
+		_ = try await couchDBClient.delete(fromDb: testsDB, doc: insertedDoc)
+		try await group.shutdownGracefully()
+	}
+
+	@Test("Raw find buffers response body when providing an EventLoopGroup")
+	func raw_find_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		let insertedDoc = try await couchDBClient.insert(
+			dbName: testsDB,
+			doc: ExpectedDoc(name: "EventLoop Raw Find")
+		)
+		let selector = ["selector": ["name": insertedDoc.name]]
+		let bodyData = try JSONEncoder().encode(selector)
+
+		let response = try await couchDBClient.find(
+			inDB: testsDB,
+			body: .bytes(ByteBuffer(data: bodyData)),
+			eventLoopGroup: group
+		)
+		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
+		var bytes = try await response.body.collect(upTo: expectedBytes)
+		let data = try #require(bytes.readData(length: bytes.readableBytes))
+		let decodedResponse = try JSONDecoder().decode(CouchDBFindResponse<ExpectedDoc>.self, from: data)
+
+		#expect(decodedResponse.docs.contains(where: { $0._id == insertedDoc._id }))
+
+		_ = try await couchDBClient.delete(fromDb: testsDB, doc: insertedDoc)
+		try await group.shutdownGracefully()
+	}
+
+	@Test("Typed find decodes documents when providing an EventLoopGroup")
+	func typed_find_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		let insertedDoc = try await couchDBClient.insert(
+			dbName: testsDB,
+			doc: ExpectedDoc(name: "EventLoop Typed Find")
+		)
+		let query = MangoQuery(selector: ["name": .string(insertedDoc.name)])
+
+		let docs: [ExpectedDoc] = try await couchDBClient.find(
+			inDB: testsDB,
+			query: query,
+			eventLoopGroup: group
+		)
+
+		#expect(docs.contains(where: { $0._id == insertedDoc._id }))
+
+		_ = try await couchDBClient.delete(fromDb: testsDB, doc: insertedDoc)
+		try await group.shutdownGracefully()
+	}
+
 	@Test("Calling find with custom date decoding strategy")
 	func test21_find_with_custom_date_decoding_strategy() async throws {
 		let testDoc = ExpectedDoc(name: "DateTest")
@@ -524,6 +616,56 @@ struct CouchDBClientTests {
 
 		let indexesResponse = try await couchDBClient.listIndexes(inDB: testsDB)
 		#expect(indexesResponse.indexes.contains(where: { $0.name == "test-index" }))
+	}
+
+	@Test("List indexes providing an EventLoopGroup")
+	func list_indexes_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		let indexDef = IndexDefinition(fields: [["name": "asc"]])
+		let index = MangoIndex(
+			ddoc: "test-ddoc-eventloop-list",
+			name: "test-index-eventloop-list",
+			type: "json",
+			def: indexDef
+		)
+		_ = try await couchDBClient.createIndex(inDB: testsDB, index: index)
+
+		let indexesResponse = try await couchDBClient.listIndexes(inDB: testsDB, eventLoopGroup: group)
+		#expect(indexesResponse.indexes.contains(where: { $0.name == "test-index-eventloop-list" }))
+
+		try await group.shutdownGracefully()
+	}
+
+	@Test("Explain Mango query providing an EventLoopGroup")
+	func explain_query_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		let indexDef = IndexDefinition(fields: [["name": "asc"]])
+		let index = MangoIndex(
+			ddoc: "test-ddoc-eventloop-explain",
+			name: "test-index-eventloop-explain",
+			type: "json",
+			def: indexDef
+		)
+		_ = try await couchDBClient.createIndex(inDB: testsDB, index: index)
+
+		let insertedDoc = try await couchDBClient.insert(
+			dbName: testsDB,
+			doc: ExpectedDoc(name: "EventLoop Explain")
+		)
+		let query = MangoQuery(selector: ["name": .string(insertedDoc.name)], fields: ["name"])
+
+		let explainResponse = try await couchDBClient.explain(
+			inDB: testsDB,
+			query: query,
+			eventLoopGroup: group
+		)
+
+		#expect(!explainResponse.fields.isEmpty)
+		#expect(explainResponse.fields.contains("name"))
+		#expect(explainResponse.dbname == testsDB)
+
+		_ = try await couchDBClient.delete(fromDb: testsDB, doc: insertedDoc)
+		try await group.shutdownGracefully()
 	}
 
 	@Test("Cleanup: Delete Test Database")
