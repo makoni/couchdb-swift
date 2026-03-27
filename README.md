@@ -36,7 +36,7 @@ This is a simple library to work with CouchDB in Swift.
 
 ## Testing
 
-Comprehensive test suite covers all major APIs, including Attachments. Run tests with:
+The integration test suite covers all major APIs, including attachments. It expects a running CouchDB instance and the `COUCHDB_PASS` environment variable. Run tests with:
 
 ```bash
 COUCHDB_PASS=myPassword swift test
@@ -134,7 +134,7 @@ print("Attachment deleted, new revision: \(deleteResponse.rev)")
 // Example struct
 struct ExpectedDoc: CouchDBRepresentable {
     var name: String
-    var _id: String = NSUUID().uuidString
+    var _id: String = UUID().uuidString
     var _rev: String?
 
     func updateRevision(_ newRevision: String) -> Self {
@@ -167,7 +167,7 @@ print(doc)
 doc.name = "Updated name"
 
 doc = try await couchDBClient.update(
-    dbName: testsDB,
+    dbName: "databaseName",
     doc: doc
 )
 
@@ -178,8 +178,16 @@ print(doc) // doc will have updated name and _rev values now
 
 ```swift
 let response = try await couchDBClient.delete(fromDb: "databaseName", doc: doc)
-// or by uri
-let response = try await couchDBClient.delete(fromDb: "databaseName", uri: doc._id,rev: doc._rev)
+
+guard let rev = doc._rev else {
+    fatalError("Expected a revision after reading the document from CouchDB")
+}
+
+let rawResponse = try await couchDBClient.delete(
+    fromDb: "databaseName",
+    uri: doc._id,
+    rev: rev
+)
 ```
 
 ### Get All Databases
@@ -190,13 +198,21 @@ print(dbs)
 // prints: ["_global_changes", "_replicator", "_users", "yourDBname"]
 ```
 
-### Find Documents in a Database by Selector
+### Find Documents in a Database by Mango Query
 ```swift
 let selector: [String: MangoValue] = [
     "type": .string("user"),
     "age": .comparison(.greaterThan(.int(30)))
 ]
-let query = MangoQuery(selector: selector, fields: ["name", "email"], sort: [MangoSortField(field: "name", direction: .asc)], limit: 10, skip: 0)
+
+let query = MangoQuery(
+    selector: selector,
+    fields: ["name", "email"],
+    sort: [MangoSortField(field: "name", direction: .asc)],
+    limit: 10,
+    skip: 0
+)
+
 let docs: [ExpectedDoc] = try await couchDBClient.find(inDB: "databaseName", query: query)
 print(docs)
 ```

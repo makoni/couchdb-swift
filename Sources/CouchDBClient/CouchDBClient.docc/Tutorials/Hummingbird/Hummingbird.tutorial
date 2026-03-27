@@ -20,7 +20,7 @@
             }
 
             @Step {
-                Add `CouchDBClient` as a Swift Package dependency.
+                Add `CouchDBClient` and `ServiceLifecycle` as Swift Package dependencies.
                 
                 @Code(name: "Package.swift", file: Hummingbird-package-2.swift)
             }

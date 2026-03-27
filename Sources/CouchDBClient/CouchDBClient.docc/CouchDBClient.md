@@ -13,10 +13,10 @@ The source code is available on [GitHub](https://github.com/makoni/couchdb-swift
 - **iPadOS 13+**
 - **tvOS 13+**
 - **watchOS 6+**
-- **visionOS 1.0+**
+- **visionOS 1+**
 - **macOS 10.15+**
 
-Built on top of [AsyncHTTPClient](https://github.com/swift-server/async-http-client), `CouchDBClient` is ideal for server-side development with Vapor and Hummingbird but is equally suitable for iOS and macOS applications. Check the **Essentials** section for usage examples.
+Built on top of [AsyncHTTPClient](https://github.com/swift-server/async-http-client), `CouchDBClient` is ideal for server-side development with Vapor and Hummingbird but is equally suitable for iOS, visionOS, and macOS applications. Check the **Essentials** section for usage examples.
 
 ### Features
 
