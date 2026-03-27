@@ -406,7 +406,8 @@ struct CouchDBClientTests {
 		)
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
 		var bytes = try await response.body.collect(upTo: expectedBytes)
-		let data = try #require(bytes.readData(length: bytes.readableBytes))
+		let rawData = bytes.readData(length: bytes.readableBytes)
+		let data = try #require(rawData)
 		let fetchedDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data)
 
 		#expect(fetchedDoc._id == insertResponse._id)
@@ -455,7 +456,8 @@ struct CouchDBClientTests {
 		)
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
 		var bytes = try await response.body.collect(upTo: expectedBytes)
-		let data = try #require(bytes.readData(length: bytes.readableBytes))
+		let rawData = bytes.readData(length: bytes.readableBytes)
+		let data = try #require(rawData)
 		let decodedResponse = try JSONDecoder().decode(CouchDBFindResponse<ExpectedDoc>.self, from: data)
 
 		#expect(decodedResponse.docs.contains(where: { $0._id == insertedDoc._id }))

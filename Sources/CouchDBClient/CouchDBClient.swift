@@ -1203,9 +1203,9 @@ internal extension CouchDBClient {
 		}
 	}
 
-	func withPreparedClient<T>(
+	func withPreparedClient<T: Sendable>(
 		eventLoopGroup: EventLoopGroup? = nil,
-		_ operation: (HTTPClient) async throws -> T
+		_ operation: @Sendable (HTTPClient) async throws -> T
 	) async throws -> T {
 		try await authIfNeed(eventLoopGroup: eventLoopGroup)
 
