@@ -187,7 +187,7 @@ public actor CouchDBClient {
 	public func getAllDBs(eventLoopGroup: EventLoopGroup? = nil) async throws -> [String] {
 		let url = buildUrl(path: "/_all_dbs")
 		let request = try buildRequest(fromUrl: url, withMethod: .GET)
-		let data = try await executeAuthorizedRequestData(request, eventLoopGroup: eventLoopGroup)
+		let data = try await authorizedData(request, eventLoopGroup: eventLoopGroup)
 		return try JSONDecoder().decode([String].self, from: data)
 	}
 
@@ -201,15 +201,12 @@ public actor CouchDBClient {
 	///   - eventLoopGroup: An optional `EventLoopGroup` used for executing network requests.
 	///     If not provided, the function defaults to using a shared instance of `HTTPClient`.
 	/// - Returns: A `Bool` indicating whether the database exists (`true`) or not (`false`).
-	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails, `.noData` if the response lacks required data.
+	/// - Throws: A `CouchDBClientError` if authentication fails, plus any underlying request execution error.
 	///
 	/// ### Function Workflow:
-	/// 1. Authenticates with the CouchDB server if authentication is required.
-	/// 2. Creates an `HTTPClient` instance—either scoped to the provided `EventLoopGroup` or using the shared instance.
-	/// 3. Constructs the request URL using the provided database name.
-	/// 4. Sends a `HEAD` request to the CouchDB server to check the database existence.
-	/// 5. Processes the server's response and checks its HTTP status code.
-	/// 6. Returns `true` for a `.ok` response status and `false` otherwise.
+	/// 1. Constructs a `HEAD` request for the provided database name.
+	/// 2. Executes the request using an authenticated client, optionally scoped to the provided `EventLoopGroup`.
+	/// 3. Returns `true` when the response status is `.ok`, and `false` otherwise.
 	///
 	/// ### Example Usage:
 	/// ```swift
@@ -223,7 +220,7 @@ public actor CouchDBClient {
 	public func dbExists(_ dbName: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> Bool {
 		let url = buildUrl(path: "/" + dbName)
 		let request = try buildRequest(fromUrl: url, withMethod: .HEAD)
-		let response = try await executeAuthorizedRequestResponse(request, eventLoopGroup: eventLoopGroup)
+		let response = try await authorizedResponse(request, eventLoopGroup: eventLoopGroup)
 		return response.status == .ok
 	}
 
@@ -252,7 +249,7 @@ public actor CouchDBClient {
 	@discardableResult public func createDB(_ dbName: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> UpdateDBResponse {
 		let url = buildUrl(path: "/\(dbName)")
 		let request = try self.buildRequest(fromUrl: url, withMethod: .PUT)
-		return try await executeAuthorizedRequestDecoding(
+		return try await authorizedDecoded(
 			UpdateDBResponse.self,
 			request: request,
 			eventLoopGroup: eventLoopGroup,
@@ -285,7 +282,7 @@ public actor CouchDBClient {
 	@discardableResult public func deleteDB(_ dbName: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> UpdateDBResponse {
 		let url = buildUrl(path: "/\(dbName)")
 		let request = try self.buildRequest(fromUrl: url, withMethod: .DELETE)
-		return try await executeAuthorizedRequestDecoding(
+		return try await authorizedDecoded(
 			UpdateDBResponse.self,
 			request: request,
 			eventLoopGroup: eventLoopGroup,
@@ -578,16 +575,17 @@ public actor CouchDBClient {
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
 	///     If not provided, the function uses a shared instance of `HTTPClient`.
 	/// - Returns: A `CouchUpdateResponse` object containing the result of the update operation.
-	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails, `.noData` if the response lacks required data, `.updateError` if decoding the response fails, with the underlying `CouchDBError`.
+	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails,
+	///   `.noData` if the response body cannot be read, `.conflictError(error:)` when CouchDB returns a conflict,
+	///   `.updateError(error:)` when CouchDB reports a not-found or update error, and `.unknownResponse` if
+	///   CouchDB returns an unexpected error payload.
 	///
 	/// ### Function Workflow:
-	/// 1. Authenticates with the CouchDB server if required.
-	/// 2. Creates an `HTTPClient` instance—either scoped to the provided `EventLoopGroup` or using the shared instance.
-	/// 3. Constructs the request URL for the document using the database name and URI.
-	/// 4. Sets the request body with the updated document content and sends a `PUT` request to the server.
-	/// 5. Processes the server's response, throwing errors for unauthorized access or missing data.
-	/// 6. Decodes the response body into a `CouchUpdateResponse` object and returns it.
-	/// 7. If decoding fails, attempts to decode the response as a `CouchDBError` and throws it as `.updateError`.
+	/// 1. Constructs a `PUT` request for the target document and attaches the provided body.
+	/// 2. Executes the request using an authenticated client and buffers the response body.
+	/// 3. Throws `.conflictError(error:)` when CouchDB responds with `409 Conflict`.
+	/// 4. Throws `.updateError(error:)` when CouchDB responds with `404 Not Found`.
+	/// 5. Decodes and returns `CouchUpdateResponse` for successful responses.
 	///
 	/// ### Example Usage:
 	/// #### Define Your Document Model:
@@ -641,7 +639,7 @@ public actor CouchDBClient {
 		let url = buildUrl(path: "/" + dbName + "/" + uri)
 		var request = try buildRequest(fromUrl: url, withMethod: .PUT)
 		request.body = body
-		let result = try await executeAuthorizedRequestDataWithResponse(request, eventLoopGroup: eventLoopGroup)
+		let result = try await authorizedResponseAndData(request, eventLoopGroup: eventLoopGroup)
 
 		if result.response.status == .conflict {
 			throw CouchDBClientError.conflictError(error: try decodeCouchError(from: result.data))
@@ -679,7 +677,7 @@ public actor CouchDBClient {
 	/// 3. Constructs the request body using the encoded document data.
 	/// 4. Sends a `PUT` request to update the document in the specified database.
 	/// 5. Processes the server's response and throws an error if the operation fails.
-	/// 6. Updates the document's `_rev` (and `_id` if necessary) based on the server's response.
+	/// 6. Returns the document updated with the new `_rev` value from CouchDB.
 	///
 	/// ### Example Usage:
 	/// #### Define Your Document Model:
@@ -789,7 +787,7 @@ public actor CouchDBClient {
 		let url = buildUrl(path: "/\(dbName)")
 		var request = try self.buildRequest(fromUrl: url, withMethod: .POST)
 		request.body = body
-		return try await executeAuthorizedRequestDecoding(
+		return try await authorizedDecoded(
 			CouchUpdateResponse.self,
 			request: request,
 			eventLoopGroup: eventLoopGroup,
@@ -808,14 +806,14 @@ public actor CouchDBClient {
 	///   - doc: The document of type `T` to be inserted. The type `T` must conform to `CouchDBRepresentable`.
 	///   - dateEncodingStrategy: The strategy used for encoding dates within the document. Defaults to `.secondsSince1970`.
 	///   - eventLoopGroup: An optional `EventLoopGroup` for managing network operations. If not provided, a shared instance of `HTTPClient` is used.
-	/// - Returns: The newly inserted document of type `T`, updated with its `_id` and `_rev` properties.
+	/// - Returns: The newly inserted document of type `T`, updated with its new `_rev` property.
 	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unknownResponse` if the server's response is unexpected or unsuccessful.
 	///
 	/// ### Function Workflow:
 	/// 1. Encodes the document using a `JSONEncoder` configured with the specified date encoding strategy.
 	/// 2. Prepares a `POST` request with the encoded document as the request body.
 	/// 3. Sends the request to the CouchDB server and processes the response.
-	/// 4. Updates the document's `_id` and `_rev` based on the server's response.
+	/// 4. Returns the document updated with the new `_rev` from CouchDB.
 	/// 5. Throws an error if the server's response is unexpected or unsuccessful.
 	///
 	/// ### Example Usage:
@@ -878,15 +876,16 @@ public actor CouchDBClient {
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network requests.
 	///     If not provided, the function uses a shared instance of `HTTPClient`.
 	/// - Returns: A `CouchUpdateResponse` object containing the result of the delete operation.
-	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails, `.noData`: if the response lacks required data.
+	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails,
+	///   `.deleteError(error:)` when CouchDB reports the document as missing, or `.unknownResponse` when CouchDB
+	///   returns an unexpected error payload.
 	///
 	/// ### Function Workflow:
-	/// 1. Creates an `HTTPClient` instance—either scoped to the provided `EventLoopGroup` or using the shared instance.
-	/// 2. Constructs the request URL using the database name, document URI, and revision query parameter.
-	/// 3. Sends a `DELETE` request to remove the document from the CouchDB server.
-	/// 4. Processes the server's response, throwing errors for unauthorized access or missing data.
-	/// 5. Decodes the response body into a `CouchUpdateResponse` object if the deletion is successful.
-	/// 6. Returns a `CouchUpdateResponse` with `ok` set to `false` if there is no response data.
+	/// 1. Constructs a `DELETE` request using the database name, document URI, and revision query parameter.
+	/// 2. Executes the request using an authenticated client and buffers the response body.
+	/// 3. Throws `.deleteError(error:)` when CouchDB responds with `404 Not Found`.
+	/// 4. Decodes and returns `CouchUpdateResponse` for successful responses.
+	/// 5. Returns `CouchUpdateResponse(ok: false, id: "", rev: "")` when the response body is empty.
 	///
 	/// ### Example Usage:
 	/// ```swift
@@ -908,7 +907,7 @@ public actor CouchDBClient {
 			]
 		)
 		let request = try self.buildRequest(fromUrl: url, withMethod: .DELETE)
-		let result = try await executeAuthorizedRequestBytes(request, eventLoopGroup: eventLoopGroup)
+		let result = try await authorizedBytes(request, eventLoopGroup: eventLoopGroup)
 		var bytes = result.bytes
 
 		guard let data = bytes.readData(length: bytes.readableBytes) else {
@@ -938,8 +937,7 @@ public actor CouchDBClient {
 	///
 	/// ### Function Workflow:
 	/// 1. Validates the presence of the document's `_rev` property.
-	/// 2. Calls `delete(fromDb:uri:rev:eventLoopGroup:)` with the document's `_id` and `_rev` to execute the deletion.
-	/// 3. Processes and returns the server's response as a `CouchUpdateResponse` object.
+	/// 2. Delegates to `delete(fromDb:uri:rev:eventLoopGroup:)` using the document's `_id` and `_rev`.
 	///
 	/// ### Example Usage:
 	/// ```swift
@@ -975,7 +973,7 @@ public actor CouchDBClient {
 	public func listIndexes(inDB dbName: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> MangoIndexesResponse {
 		let url = buildUrl(path: "/\(dbName)/_index")
 		let request = try buildRequest(fromUrl: url, withMethod: .GET)
-		return try await executeAuthorizedRequestDecoding(
+		return try await authorizedDecoded(
 			MangoIndexesResponse.self,
 			request: request,
 			eventLoopGroup: eventLoopGroup,
@@ -1016,7 +1014,7 @@ public actor CouchDBClient {
 		var request = try buildRequest(fromUrl: url, withMethod: .POST)
 		request.body = requestBody
 
-		return try await executeAuthorizedRequestDecoding(
+		return try await authorizedDecoded(
 			MangoCreateIndexResponse.self,
 			request: request,
 			eventLoopGroup: eventLoopGroup,
@@ -1054,7 +1052,7 @@ public actor CouchDBClient {
 		var request = try buildRequest(fromUrl: url, withMethod: .POST)
 		request.body = requestBody
 
-		return try await executeAuthorizedRequestDecoding(
+		return try await authorizedDecoded(
 			MangoExplainResponse.self,
 			request: request,
 			eventLoopGroup: eventLoopGroup,
@@ -1092,7 +1090,7 @@ public actor CouchDBClient {
 		var request = try buildRequest(fromUrl: url, withMethod: .PUT)
 		request.headers.replaceOrAdd(name: "Content-Type", value: contentType)
 		request.body = .bytes(ByteBuffer(data: data))
-		return try await executeAuthorizedRequestDecoding(
+		return try await authorizedDecoded(
 			CouchUpdateResponse.self,
 			request: request,
 			eventLoopGroup: eventLoopGroup,
@@ -1122,7 +1120,7 @@ public actor CouchDBClient {
 	public func downloadAttachment(dbName: String, docId: String, attachmentName: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> Data {
 		let url = buildUrl(path: "/\(dbName)/\(docId)/\(attachmentName)")
 		let request = try buildRequest(fromUrl: url, withMethod: .GET)
-		return try await executeAuthorizedRequestData(request, eventLoopGroup: eventLoopGroup)
+		return try await authorizedData(request, eventLoopGroup: eventLoopGroup)
 	}
 
 	/// Deletes an attachment from a CouchDB document.
@@ -1149,7 +1147,7 @@ public actor CouchDBClient {
 	public func deleteAttachment(dbName: String, docId: String, attachmentName: String, rev: String, eventLoopGroup: EventLoopGroup? = nil) async throws -> CouchUpdateResponse {
 		let url = buildUrl(path: "/\(dbName)/\(docId)/\(attachmentName)", query: [URLQueryItem(name: "rev", value: rev)])
 		let request = try buildRequest(fromUrl: url, withMethod: .DELETE)
-		return try await executeAuthorizedRequestDecoding(
+		return try await authorizedDecoded(
 			CouchUpdateResponse.self,
 			request: request,
 			eventLoopGroup: eventLoopGroup,
@@ -1234,7 +1232,7 @@ internal extension CouchDBClient {
 		return response
 	}
 
-	func executeAuthorizedRequestResponse(
+	func authorizedResponse(
 		_ request: HTTPClientRequest,
 		eventLoopGroup: EventLoopGroup? = nil
 	) async throws -> HTTPClientResponse {
@@ -1243,7 +1241,7 @@ internal extension CouchDBClient {
 		}
 	}
 
-	func executeAuthorizedRequestBytes(
+	func authorizedBytes(
 		_ request: HTTPClientRequest,
 		eventLoopGroup: EventLoopGroup? = nil
 	) async throws -> (response: HTTPClientResponse, bytes: ByteBuffer) {
@@ -1254,7 +1252,7 @@ internal extension CouchDBClient {
 		}
 	}
 
-	func executeAuthorizedRequestDataWithResponse(
+	func authorizedResponseAndData(
 		_ request: HTTPClientRequest,
 		eventLoopGroup: EventLoopGroup? = nil
 	) async throws -> (response: HTTPClientResponse, data: Data) {
@@ -1265,38 +1263,31 @@ internal extension CouchDBClient {
 		}
 	}
 
-	func executeAuthorizedRequestData(
+	func authorizedData(
 		_ request: HTTPClientRequest,
 		eventLoopGroup: EventLoopGroup? = nil
 	) async throws -> Data {
-		let result = try await executeAuthorizedRequestDataWithResponse(
+		let result = try await authorizedResponseAndData(
 			request,
 			eventLoopGroup: eventLoopGroup
 		)
 		return result.data
 	}
 
-	func executeAuthorizedRequestDecoding<T: Decodable>(
+	func authorizedDecoded<T: Decodable>(
 		_ type: T.Type,
 		request: HTTPClientRequest,
 		eventLoopGroup: EventLoopGroup? = nil,
 		dateDecodingStrategy: JSONDecoder.DateDecodingStrategy? = nil,
 		mapCouchError: (CouchDBError) -> CouchDBClientError
 	) async throws -> T {
-		let data = try await executeAuthorizedRequestData(request, eventLoopGroup: eventLoopGroup)
+		let data = try await authorizedData(request, eventLoopGroup: eventLoopGroup)
 		return try decodeJSON(
 			type,
 			from: data,
 			dateDecodingStrategy: dateDecodingStrategy,
 			mapCouchError: mapCouchError
 		)
-	}
-
-	func executeAuthorizedRequestCollecting(
-		_ request: HTTPClientRequest,
-		eventLoopGroup: EventLoopGroup? = nil
-	) async throws -> (response: HTTPClientResponse, bytes: ByteBuffer) {
-		try await executeAuthorizedRequestBytes(request, eventLoopGroup: eventLoopGroup)
 	}
 
 	/// Get authorization cookie in didn't yet. This cookie will be added automatically to requests that require authorization.
@@ -1417,7 +1408,7 @@ internal extension CouchDBClient {
 	) async throws -> (response: HTTPClientResponse, bytes: ByteBuffer) {
 		let url = buildUrl(path: "/" + dbName + "/" + uri, query: queryItems ?? [])
 		let request = try buildRequest(fromUrl: url, withMethod: .GET)
-		let result = try await executeAuthorizedRequestCollecting(request, eventLoopGroup: eventLoopGroup)
+		let result = try await authorizedBytes(request, eventLoopGroup: eventLoopGroup)
 		var bytes = result.bytes
 
 		if result.response.status == .notFound {
@@ -1439,7 +1430,7 @@ internal extension CouchDBClient {
 		let url = buildUrl(path: "/" + dbName + "/_find", query: [])
 		var request = try buildRequest(fromUrl: url, withMethod: .POST)
 		request.body = body
-		return try await executeAuthorizedRequestCollecting(request, eventLoopGroup: eventLoopGroup)
+		return try await authorizedBytes(request, eventLoopGroup: eventLoopGroup)
 	}
 
 	func buildRequest(fromUrl url: String, withMethod method: HTTPMethod) throws -> HTTPClientRequest {
