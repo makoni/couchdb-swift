@@ -9,7 +9,6 @@ import Foundation
 
 import NIO
 import NIOHTTP1
-import NIOFoundationCompat
 import AsyncHTTPClient
 
 /// A CouchDB client actor with methods using Swift Concurrency.
