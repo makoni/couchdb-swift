@@ -167,21 +167,13 @@ public actor CouchDBClient {
 	/// Retrieves a list of all database names from the CouchDB server.
 	///
 	/// This asynchronous function sends a `GET` request to the CouchDB server to fetch the names of all databases.
-	/// It supports using a custom NIO's `EventLoopGroup` for network operations, providing flexibility for managing event loops.
+	/// It supports using a custom NIO `EventLoopGroup` for network operations.
 	///
 	/// - Parameter eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
 	///   If not provided, the function uses a shared instance of `HTTPClient`.
 	/// - Returns: An array of `String` containing the names of all databases available on the server.
-	/// - Throws: A `CouchDBClientError` if the request fails or if the response lacks required data.
-	///
-	/// ### Function Workflow:
-	/// 1. The function authenticates with the CouchDB server if authentication is required.
-	/// 2. An `HTTPClient` instance is created—either shared or scoped to the provided `EventLoopGroup`.
-	/// 3. The request URL is built using the server's `/all_dbs` endpoint.
-	/// 4. The function sends the `GET` request to CouchDB and processes the response.
-	/// 5. If the response status is `.unauthorized`, a `CouchDBClientError.unauthorized` is thrown.
-	/// 6. The response body is collected, with size limits based on `content-length` or a default maximum.
-	/// 7. The collected data is decoded into an array of database names.
+	/// - Throws: A `CouchDBClientError` if authentication fails, the response body is missing,
+	///   or the returned JSON cannot be decoded into `[String]`.
 	///
 	/// ### Example Usage:
 	/// ```swift
@@ -216,13 +208,7 @@ public actor CouchDBClient {
 			throw CouchDBClientError.unauthorized
 		}
 
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
-
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
+		let data = try await collectResponseData(from: response)
 		return try JSONDecoder().decode([String].self, from: data)
 	}
 
@@ -283,24 +269,17 @@ public actor CouchDBClient {
 
 	/// Creates a new database on the CouchDB server.
 	///
-	/// This asynchronous function sends a `PUT` request to the CouchDB server to create a new database with the specified name.
-	/// It supports using a custom `EventLoopGroup` for network operations, providing flexibility for managing event loops.
+	/// This method sends a `PUT` request for the specified database name and decodes CouchDB's update response.
+	/// It supports using a custom `EventLoopGroup` for network operations.
 	///
 	/// - Parameters:
 	///   - dbName: The name of the database to be created.
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network requests.
 	///     If not provided, the function defaults to using a shared instance of `HTTPClient`.
 	/// - Returns: An `UpdateDBResponse` object that contains the result of the database creation operation.
-	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails, `.noData` if the response lacks required data, `.insertError` if the database creation fails and CouchDB returns an error.
-	///
-	/// ### Function Workflow:
-	/// 1. Authenticates with the CouchDB server if required.
-	/// 2. Creates an `HTTPClient` instance—either scoped to the provided `EventLoopGroup` or using the shared instance.
-	/// 3. Constructs the request URL using the specified database name.
-	/// 4. Sends a `PUT` request to the CouchDB server to create the database.
-	/// 5. Processes the server's response, throwing errors for unauthorized access or missing data.
-	/// 6. Decodes the response body into an `UpdateDBResponse` object if successful.
-	/// 7. If decoding fails, attempts to decode the response into a `CouchDBError` object and throws it as an `.insertError`.
+	/// - Throws: A `CouchDBClientError` if authentication fails, the response body is missing,
+	///   or CouchDB returns an error payload that maps to `.insertError(error:)`.
+	///   Non-CouchDB decoding failures are propagated as the underlying decoding error.
 	///
 	/// ### Example Usage:
 	/// ```swift
@@ -335,30 +314,17 @@ public actor CouchDBClient {
 			throw CouchDBClientError.unauthorized
 		}
 
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
-
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
-
-		let decoder = JSONDecoder()
-
-		do {
-			let decodedResponse = try decoder.decode(UpdateDBResponse.self, from: data)
-			return decodedResponse
-		} catch let parsingError {
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-				throw CouchDBClientError.insertError(error: couchdbError)
-			}
-			throw parsingError
-		}
+		let data = try await collectResponseData(from: response)
+		return try decodeJSON(
+			UpdateDBResponse.self,
+			from: data,
+			mapCouchError: { CouchDBClientError.insertError(error: $0) }
+		)
 	}
 
 	/// Deletes a database from the CouchDB server.
 	///
-	/// This asynchronous function sends a `DELETE` request to the CouchDB server to remove a database with the specified name.
+	/// This method sends a `DELETE` request for the specified database and decodes CouchDB's update response.
 	/// It supports using a custom `EventLoopGroup` for managing network operations.
 	///
 	/// - Parameters:
@@ -366,16 +332,9 @@ public actor CouchDBClient {
 	///   - eventLoopGroup: An optional `EventLoopGroup` used for executing network operations.
 	///     If not provided, the function defaults to using a shared instance of `HTTPClient`.
 	/// - Returns: An `UpdateDBResponse` object that contains the result of the database deletion operation.
-	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails, `.noData` if the response lacks required data, `.insertError` if the deletion fails and CouchDB returns an error.
-	///
-	/// ### Function Workflow:
-	/// 1. Authenticates with the CouchDB server if required.
-	/// 2. Creates an `HTTPClient` instance—either scoped to the provided `EventLoopGroup` or using the shared instance.
-	/// 3. Constructs the request URL using the specified database name.
-	/// 4. Sends a `DELETE` request to the CouchDB server to delete the database.
-	/// 5. Processes the server's response, throwing errors for unauthorized access or missing data.
-	/// 6. Decodes the response body into an `UpdateDBResponse` object if successful.
-	/// 7. If decoding fails, attempts to decode the response into a `CouchDBError` object and throws it as `.deleteError`.
+	/// - Throws: A `CouchDBClientError` if authentication fails, the response body is missing,
+	///   or CouchDB returns an error payload that maps to `.deleteError(error:)`.
+	///   Non-CouchDB decoding failures are propagated as the underlying decoding error.
 	///
 	/// ### Example Usage:
 	/// ```swift
@@ -410,31 +369,19 @@ public actor CouchDBClient {
 			throw CouchDBClientError.unauthorized
 		}
 
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
-
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
-
-		let decoder = JSONDecoder()
-
-		do {
-			let decodedResponse = try decoder.decode(UpdateDBResponse.self, from: data)
-			return decodedResponse
-		} catch let parsingError {
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-				throw CouchDBClientError.deleteError(error: couchdbError)
-			}
-			throw parsingError
-		}
+		let data = try await collectResponseData(from: response)
+		return try decodeJSON(
+			UpdateDBResponse.self,
+			from: data,
+			mapCouchError: { CouchDBClientError.deleteError(error: $0) }
+		)
 	}
 
-	/// Fetches data from a specified database and URI on the CouchDB server.
+	/// Fetches raw data from a specified database and URI on the CouchDB server.
 	///
-	/// This asynchronous function sends a `GET` request to the CouchDB server to retrieve data from a specific database and resource URI.
-	/// It supports using a custom `EventLoopGroup` for network operations and allows the inclusion of query parameters.
+	/// This method sends a `GET` request to a database resource and returns the raw `HTTPClientResponse`.
+	/// Before returning, it buffers the response body in memory so callers can inspect or decode it without reissuing the request.
+	/// It supports using a custom `EventLoopGroup` and optional query parameters.
 	///
 	/// - Parameters:
 	///   - dbName: The name of the database from which to fetch data.
@@ -442,16 +389,9 @@ public actor CouchDBClient {
 	///   - queryItems: An optional array of `URLQueryItem` to specify query parameters for the request.
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
 	///     If not provided, the function defaults to using a shared instance of `HTTPClient`.
-	/// - Returns: An `HTTPClientResponse` object containing the server's response to the request.
-	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails, `.noData` if the response lacks required data.
-	///
-	/// ### Function Workflow:
-	/// 1. Authenticates with the CouchDB server if required.
-	/// 2. Creates an `HTTPClient` instance, either scoped to the provided `EventLoopGroup` or using the shared instance.
-	/// 3. Builds the request URL using the database name, resource URI, and optional query items.
-	/// 4. Sends a `GET` request to the CouchDB server and processes the server's response.
-	/// 5. If the response status is `.unauthorized`, throws a `CouchDBClientError.unauthorized` error.
-	/// 6. Updates the response body with the collected data bytes before returning.
+	/// - Returns: An `HTTPClientResponse` whose body has already been buffered in memory.
+	/// - Throws: A `CouchDBClientError` if authentication fails, the resource is not found,
+	///   or the response body is missing.
 	///
 	/// ### Example Usage:
 	/// #### Define Your Document Data Model
@@ -467,27 +407,16 @@ public actor CouchDBClient {
 	/// }
 	/// ```
 	///
-	/// #### Fetch Document by ID:
+	/// #### Fetch a Raw Response:
 	/// ```swift
 	/// let response = try await couchDBClient.get(
 	///     fromDB: "myDatabase",
 	///     uri: "documentID"
 	/// )
-	///
-	/// let expectedBytes = response.headers
-	///     .first(name: "content-length")
-	///     .flatMap(Int.init) ?? 1024 * 1024 * 10
-	/// var bytes = try await response.body.collect(upTo: expectedBytes)
-	/// let data = bytes.readData(length: bytes.readableBytes)
-	///
-	/// let doc = try JSONDecoder().decode(
-	///     ExpectedDoc.self,
-	///     from: data!
-	/// )
-	/// print(doc)
+	/// print(response.status)
 	/// ```
 	///
-	/// #### Fetch Data from a CouchDB View:
+	/// #### Fetch Data for Manual Decoding:
 	/// ```swift
 	/// let response = try await couchDBClient.get(
 	///     fromDB: "myDatabase",
@@ -496,72 +425,27 @@ public actor CouchDBClient {
 	///         URLQueryItem(name: "key", value: "\"\(url)\"")
 	///     ]
 	/// )
-	///
-	/// let expectedBytes = response.headers
-	///     .first(name: "content-length")
-	///     .flatMap(Int.init) ?? 1024 * 1024 * 10
-	/// var bytes = try await response.body.collect(upTo: expectedBytes)
-	/// let data = bytes.readData(length: bytes.readableBytes)
-	///
-	/// let decodedResponse = try JSONDecoder().decode(
-	///     RowsResponse<ExpectedDoc>.self,
-	///     from: data!
-	/// )
-	/// print(decodedResponse.rows)
+	/// print(response.status)
 	/// ```
 	///
 	/// - Note: Ensure that the CouchDB server is running and accessible. Handle thrown errors appropriately, especially for authentication issues.
 	public func get(fromDB dbName: String, uri: String, queryItems: [URLQueryItem]? = nil, eventLoopGroup: EventLoopGroup? = nil) async throws -> HTTPClientResponse {
-		try await authIfNeed(eventLoopGroup: eventLoopGroup)
-
-		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
-
-		defer {
-			if eventLoopGroup != nil {
-				DispatchQueue.main.async {
-					try? httpClient.syncShutdown()
-				}
-			}
-		}
-
-		let url = buildUrl(path: "/" + dbName + "/" + uri, query: queryItems ?? [])
-		let request = try buildRequest(fromUrl: url, withMethod: .GET)
-		var response =
-			try await httpClient
-			.execute(request, timeout: .seconds(requestsTimeout))
-
-		if response.status == .unauthorized {
-			throw CouchDBClientError.unauthorized
-		}
-
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
-
-		if response.status == .notFound {
-			var bytes = try await body.collect(upTo: expectedBytes)
-			guard let data = bytes.readData(length: bytes.readableBytes) else {
-				throw CouchDBClientError.noData
-			}
-
-			let decoder = JSONDecoder()
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-				throw CouchDBClientError.notFound(error: couchdbError)
-			}
-			throw CouchDBClientError.unknownResponse
-		}
-
-		response.body = .bytes(
-			try await body.collect(upTo: expectedBytes)
+		let result = try await performGetRequest(
+			fromDB: dbName,
+			uri: uri,
+			queryItems: queryItems,
+			eventLoopGroup: eventLoopGroup
 		)
-
+		var response = result.response
+		response.body = .bytes(result.bytes)
 		return response
 	}
 
-	/// Retrieves a document of a specified type from a database on the CouchDB server.
+	/// Retrieves and decodes a document of a specified type from a database on the CouchDB server.
 	///
-	/// This asynchronous generic function sends a `GET` request to the CouchDB server to retrieve a document
-	/// from a specific database and resource URI. The retrieved data is decoded into the specified `CouchDBRepresentable` type.
-	/// It supports using a custom `EventLoopGroup`, query parameters, and a configurable date decoding strategy.
+	/// This generic method fetches a document from a specific database resource and decodes the buffered response body
+	/// into the requested `CouchDBRepresentable` type. It supports custom query parameters, a configurable date decoding strategy,
+	/// and an optional custom `EventLoopGroup`.
 	///
 	/// - Parameters:
 	///   - dbName: The name of the database from which to fetch the document.
@@ -571,14 +455,9 @@ public actor CouchDBClient {
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
 	///     If not provided, the function uses a shared `HTTPClient`.
 	/// - Returns: A document of type `T`, where `T` conforms to `CouchDBRepresentable`.
-	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails, `.noData` if the response lacks required data, `.getError` if the document decoding fails, with the underlying `CouchDBError`.
-	///
-	/// ### Function Workflow:
-	/// 1. Authenticates with the CouchDB server if required.
-	/// 2. Sends a `GET` request to the specified database and URI, optionally including query parameters.
-	/// 3. Processes the server's response, throwing errors for unauthorized access or missing data.
-	/// 4. Decodes the response body into the specified type `T` using a `JSONDecoder` configured with the provided date decoding strategy.
-	/// 5. If decoding fails, attempts to decode the response as a `CouchDBError` and throws it as a `.getError`.
+	/// - Throws: A `CouchDBClientError` if the resource is not found, authentication fails,
+	///   the response body is missing, or CouchDB returns an error payload that maps to `.getError(error:)`.
+	///   Non-CouchDB decoding failures are propagated as the underlying decoding error.
 	///
 	/// ### Example Usage:
 	/// #### Define Your Document Model:
@@ -606,40 +485,30 @@ public actor CouchDBClient {
 	/// - Note: Ensure that the CouchDB server is running and accessible before calling this function.
 	///   Handle thrown errors appropriately, especially for authentication failures and data decoding issues.
 	public func get<T: CouchDBRepresentable>(fromDB dbName: String, uri: String, queryItems: [URLQueryItem]? = nil, dateDecodingStrategy: JSONDecoder.DateDecodingStrategy = .secondsSince1970, eventLoopGroup: EventLoopGroup? = nil) async throws -> T {
-		let response: HTTPClientResponse = try await get(fromDB: dbName, uri: uri, queryItems: queryItems, eventLoopGroup: eventLoopGroup)
-
-		if response.status == .unauthorized {
-			throw CouchDBClientError.unauthorized
-		}
-
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+		let result = try await performGetRequest(
+			fromDB: dbName,
+			uri: uri,
+			queryItems: queryItems,
+			eventLoopGroup: eventLoopGroup
+		)
+		var bytes = result.bytes
 
 		guard let data = bytes.readData(length: bytes.readableBytes) else {
 			throw CouchDBClientError.noData
 		}
 
-		let decoder = JSONDecoder()
-		decoder.dateDecodingStrategy = dateDecodingStrategy
-
-		do {
-			let doc = try decoder.decode(T.self, from: data)
-			return doc
-		} catch let parsingError {
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-				throw CouchDBClientError.getError(error: couchdbError)
-			}
-			throw parsingError
-		}
+		return try decodeJSON(
+			T.self,
+			from: data,
+			dateDecodingStrategy: dateDecodingStrategy,
+			mapCouchError: { CouchDBClientError.getError(error: $0) }
+		)
 	}
 
-	/// Performs a query to find documents in a database on the CouchDB server that match the given selector.
+	/// Performs a query using a selector payload and decodes the matching documents.
 	///
-	/// This asynchronous generic function sends a query to the CouchDB server to search for documents in a specific database
-	/// based on the criteria defined by the selector. The resulting documents are decoded into an array of the specified
-	/// `CouchDBRepresentable` type. It supports using a custom `EventLoopGroup` for network operations and allows the specification
-	/// of a custom date decoding strategy.
+	/// This deprecated compatibility overload accepts an arbitrary selector payload, sends it to CouchDB's `_find` endpoint,
+	/// and decodes the resulting documents into the requested `CouchDBRepresentable` type.
 	///
 	/// - Parameters:
 	///   - dbName: The name of the database in which to perform the query.
@@ -648,16 +517,9 @@ public actor CouchDBClient {
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
 	///     If not provided, the function defaults to using a shared instance of `HTTPClient`.
 	/// - Returns: An array of documents of type `T`, where `T` conforms to `CouchDBRepresentable`.
-	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.noData` if the response lacks required data, `.findError` if decoding fails, with the underlying `CouchDBError`.
-	///
-	/// ### Function Workflow:
-	/// 1. Encodes the selector criteria into JSON format and includes it as the request body.
-	/// 2. Sends the query request to the specified database on the CouchDB server.
-	/// 3. Collects the response body up to a size limit defined by `content-length` or a default maximum.
-	/// 4. Uses a `JSONDecoder` configured with the specified date decoding strategy to decode the response data
-	///    into a `CouchDBFindResponse<T>` object.
-	/// 5. Extracts and returns the documents from the `CouchDBFindResponse` object.
-	/// 6. Handles decoding errors by attempting to decode a `CouchDBError` object and throwing it as `.findError`.
+	/// - Throws: A `CouchDBClientError` if authentication fails, the response body is missing,
+	///   or CouchDB returns an error payload that maps to `.findError(error:)`.
+	///   Non-CouchDB decoding failures are propagated as the underlying decoding error.
 	///
 	/// ### Example Usage:
 	/// ```swift
@@ -669,48 +531,37 @@ public actor CouchDBClient {
 	/// print(documents)
 	/// ```
 	///
-	/// - Note: Ensure that the CouchDB server is running and accessible before calling this function.
-	///   Handle thrown errors appropriately, especially for data decoding issues or query mismatches.
+	/// - Note: Prefer ``find(inDB:query:dateDecodingStrategy:eventLoopGroup:)`` for a type-safe Mango query API.
 	@available(*, deprecated, message: "Use find(inDB:query:) instead")
 	public func find<T: CouchDBRepresentable>(inDB dbName: String, selector: Codable, dateDecodingStrategy: JSONDecoder.DateDecodingStrategy = .secondsSince1970, eventLoopGroup: EventLoopGroup? = nil) async throws -> [T] {
 		let encoder = JSONEncoder()
 		let selectorData = try encoder.encode(selector)
 		let requestBody: HTTPClientRequest.Body = .bytes(ByteBuffer(data: selectorData))
 
-		let findResponse = try await find(
+		let result = try await performFindRequest(
 			inDB: dbName,
 			body: requestBody,
 			eventLoopGroup: eventLoopGroup
 		)
-
-		let body = findResponse.body
-		let expectedBytes = findResponse.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+		var bytes = result.bytes
 
 		guard let data = bytes.readData(length: bytes.readableBytes) else {
 			throw CouchDBClientError.noData
 		}
 
-		let decoder = JSONDecoder()
-		decoder.dateDecodingStrategy = dateDecodingStrategy
-
-		do {
-			let doc = try decoder.decode(CouchDBFindResponse<T>.self, from: data)
-			return doc.docs
-		} catch let parsingError {
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-				throw CouchDBClientError.findError(error: couchdbError)
-			}
-			throw parsingError
-		}
+		let response = try decodeJSON(
+			CouchDBFindResponse<T>.self,
+			from: data,
+			dateDecodingStrategy: dateDecodingStrategy,
+			mapCouchError: { CouchDBClientError.findError(error: $0) }
+		)
+		return response.docs
 	}
 
-	/// Performs a query to find documents in a database on the CouchDB server that match the given selector.
+	/// Performs a Mango query and decodes the matching documents.
 	///
-	/// This asynchronous generic function sends a query to the CouchDB server to search for documents in a specific database
-	/// based on the criteria defined by the selector. The resulting documents are decoded into an array of the specified
-	/// `CouchDBRepresentable` type. It supports using a custom `EventLoopGroup` for network operations and allows the specification
-	/// of a custom date decoding strategy.
+	/// This generic method sends a `MangoQuery` to CouchDB's `_find` endpoint and decodes the resulting documents
+	/// into the requested `CouchDBRepresentable` type.
 	///
 	/// - Parameters:
 	///   - dbName: The name of the database in which to perform the query.
@@ -719,7 +570,9 @@ public actor CouchDBClient {
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network operations.
 	///     If not provided, the function defaults to using a shared instance of `HTTPClient`.
 	/// - Returns: An array of documents of type `T`, where `T` conforms to `CouchDBRepresentable`.
-	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.noData` if the response lacks required data, `.findError` if decoding fails, with the underlying `CouchDBError`.
+	/// - Throws: A `CouchDBClientError` if authentication fails, the response body is missing,
+	///   or CouchDB returns an error payload that maps to `.findError(error:)`.
+	///   Non-CouchDB decoding failures are propagated as the underlying decoding error.
 	///
 	/// ### Example Usage:
 	/// ```swift
@@ -738,54 +591,38 @@ public actor CouchDBClient {
 		let queryData = try encoder.encode(query)
 		let requestBody: HTTPClientRequest.Body = .bytes(ByteBuffer(data: queryData))
 
-		let findResponse = try await find(
+		let result = try await performFindRequest(
 			inDB: dbName,
 			body: requestBody,
 			eventLoopGroup: eventLoopGroup
 		)
-
-		let body = findResponse.body
-		let expectedBytes = findResponse.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+		var bytes = result.bytes
 
 		guard let data = bytes.readData(length: bytes.readableBytes) else {
 			throw CouchDBClientError.noData
 		}
 
-		let decoder = JSONDecoder()
-		decoder.dateDecodingStrategy = dateDecodingStrategy
-
-		do {
-			let doc = try decoder.decode(CouchDBFindResponse<T>.self, from: data)
-			return doc.docs
-		} catch let parsingError {
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-				throw CouchDBClientError.findError(error: couchdbError)
-			}
-			throw parsingError
-		}
+		let response = try decodeJSON(
+			CouchDBFindResponse<T>.self,
+			from: data,
+			dateDecodingStrategy: dateDecodingStrategy,
+			mapCouchError: { CouchDBClientError.findError(error: $0) }
+		)
+		return response.docs
 	}
 
-	/// Executes a find query on a specified database on the CouchDB server.
+	/// Executes a raw `_find` request against a specified database.
 	///
-	/// This asynchronous function sends a `POST` request with a custom body to the CouchDB server's `_find` endpoint to perform a query
-	/// in the specified database. It allows the use of a custom `EventLoopGroup` for network operations.
+	/// This method sends a custom request body to CouchDB's `_find` endpoint and returns the raw `HTTPClientResponse`.
+	/// Before returning, it buffers the response body in memory so callers can decode it manually.
 	///
 	/// - Parameters:
 	///   - dbName: The name of the database in which to execute the query.
 	///   - body: The `HTTPClientRequest.Body` containing the encoded query to be sent to the server.
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network requests.
 	///     If not provided, the function uses a shared instance of `HTTPClient`.
-	/// - Returns: An `HTTPClientResponse` object containing the server's response to the find query.
+	/// - Returns: An `HTTPClientResponse` whose body has already been buffered in memory.
 	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized`: If authentication fails.
-	///
-	/// ### Function Workflow:
-	/// 1. Authenticates with the CouchDB server if required.
-	/// 2. Creates an `HTTPClient` instance—either scoped to the provided `EventLoopGroup` or using the shared instance.
-	/// 3. Constructs the request URL for the `_find` endpoint using the database name.
-	/// 4. Sets the request body with the encoded query and sends a `POST` request to the CouchDB server.
-	/// 5. Processes the server's response, throwing errors for unauthorized access.
-	/// 6. Updates the response body with the collected bytes before returning the response object.
 	///
 	/// ### Example Usage:
 	/// #### Perform a Find Query:
@@ -794,50 +631,22 @@ public actor CouchDBClient {
 	/// let bodyData = try JSONEncoder().encode(selector)
 	/// let findResponse = try await couchDBClient.find(
 	///     inDB: "myDatabase",
-	///     body: .data(bodyData)
+	///     body: .bytes(ByteBuffer(data: bodyData))
 	/// )
 	///
-	/// let bytes = findResponse.body!.readBytes(length: findResponse.body!.readableBytes)!
-	/// let docs = try JSONDecoder().decode(
-	///     CouchDBFindResponse<ExpectedDoc>.self,
-	///     from: Data(bytes)
-	/// ).docs
-	/// print(docs)
+	/// print(findResponse.status)
 	/// ```
 	///
 	/// - Note: Ensure that the CouchDB server is running and accessible before calling this function.
 	///   Handle thrown errors appropriately, especially authentication-related issues.
 	public func find(inDB dbName: String, body: HTTPClientRequest.Body, eventLoopGroup: EventLoopGroup? = nil) async throws -> HTTPClientResponse {
-		try await authIfNeed(eventLoopGroup: eventLoopGroup)
-
-		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
-
-		defer {
-			if eventLoopGroup != nil {
-				DispatchQueue.main.async {
-					try? httpClient.syncShutdown()
-				}
-			}
-		}
-
-		let url = buildUrl(path: "/" + dbName + "/_find", query: [])
-		var request = try buildRequest(fromUrl: url, withMethod: .POST)
-		request.body = body
-		var response =
-			try await httpClient
-			.execute(request, timeout: .seconds(requestsTimeout))
-
-		if response.status == .unauthorized {
-			throw CouchDBClientError.unauthorized
-		}
-
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
-
-		response.body = .bytes(
-			try await body.collect(upTo: expectedBytes)
+		let result = try await performFindRequest(
+			inDB: dbName,
+			body: body,
+			eventLoopGroup: eventLoopGroup
 		)
-
+		var response = result.response
+		response.body = .bytes(result.bytes)
 		return response
 	}
 
@@ -1053,9 +862,9 @@ public actor CouchDBClient {
 		return doc.updateRevision(updateResponse.rev)
 	}
 
-	/// Inserts a new document into a specified database on the CouchDB server.
+	/// Inserts a raw document body into a specified database on the CouchDB server.
 	///
-	/// This asynchronous function sends a `POST` request to the CouchDB server to insert a new document into the given database.
+	/// This method sends a `POST` request with a caller-provided request body and decodes CouchDB's update response.
 	/// It allows the use of a custom `EventLoopGroup` for managing network operations.
 	///
 	/// - Parameters:
@@ -1064,16 +873,9 @@ public actor CouchDBClient {
 	///   - eventLoopGroup: An optional `EventLoopGroup` for executing network requests.
 	///     If not provided, the function uses a shared instance of `HTTPClient`.
 	/// - Returns: A `CouchUpdateResponse` object containing the result of the insertion operation.
-	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails, `.noData` if the response lacks required data, `.insertError` if decoding the response fails, with the underlying `CouchDBError`.
-	///
-	/// ### Function Workflow:
-	/// 1. Authenticates with the CouchDB server if required.
-	/// 2. Creates an `HTTPClient` instance—either scoped to the provided `EventLoopGroup` or using the shared instance.
-	/// 3. Constructs the request URL using the database name.
-	/// 4. Sets the request body with the JSON-encoded content of the new document and sends a `POST` request to the server.
-	/// 5. Processes the server's response, throwing errors for unauthorized access or missing data.
-	/// 6. Decodes the response body into a `CouchUpdateResponse` object and returns it.
-	/// 7. Handles decoding errors by attempting to decode the response as a `CouchDBError` and throws it as `.insertError`.
+	/// - Throws: A `CouchDBClientError` if authentication fails, the response body is missing,
+	///   or CouchDB returns an error payload that maps to `.insertError(error:)`.
+	///   Non-CouchDB decoding failures are propagated as the underlying decoding error.
 	///
 	/// ### Example Usage:
 	/// #### Define Your Document Model:
@@ -1132,25 +934,12 @@ public actor CouchDBClient {
 			throw CouchDBClientError.unauthorized
 		}
 
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
-
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
-
-		let decoder = JSONDecoder()
-
-		do {
-			let decodedResponse = try decoder.decode(CouchUpdateResponse.self, from: data)
-			return decodedResponse
-		} catch let parsingError {
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-				throw CouchDBClientError.insertError(error: couchdbError)
-			}
-			throw parsingError
-		}
+		let data = try await collectResponseData(from: response)
+		return try decodeJSON(
+			CouchUpdateResponse.self,
+			from: data,
+			mapCouchError: { CouchDBClientError.insertError(error: $0) }
+		)
 	}
 
 	/// Inserts a new document conforming to `CouchDBRepresentable` into a specified database on the CouchDB server.
@@ -1376,24 +1165,12 @@ public actor CouchDBClient {
 			throw CouchDBClientError.unauthorized
 		}
 
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
-
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
-
-		let decoder = JSONDecoder()
-		do {
-			let indexesResponse = try decoder.decode(MangoIndexesResponse.self, from: data)
-			return indexesResponse
-		} catch let parsingError {
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-				throw CouchDBClientError.getError(error: couchdbError)
-			}
-			throw parsingError
-		}
+		let data = try await collectResponseData(from: response)
+		return try decodeJSON(
+			MangoIndexesResponse.self,
+			from: data,
+			mapCouchError: { CouchDBClientError.getError(error: $0) }
+		)
 	}
 
 	/// Creates a new Mango index in a specified database.
@@ -1447,24 +1224,12 @@ public actor CouchDBClient {
 			throw CouchDBClientError.unauthorized
 		}
 
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
-
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
-
-		let decoder = JSONDecoder()
-		do {
-			let createIndexResponse = try decoder.decode(MangoCreateIndexResponse.self, from: data)
-			return createIndexResponse
-		} catch let parsingError {
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-				throw CouchDBClientError.insertError(error: couchdbError)
-			}
-			throw parsingError
-		}
+		let data = try await collectResponseData(from: response)
+		return try decodeJSON(
+			MangoCreateIndexResponse.self,
+			from: data,
+			mapCouchError: { CouchDBClientError.insertError(error: $0) }
+		)
 	}
 
 	/// Explains a Mango query in a specified database.
@@ -1515,24 +1280,12 @@ public actor CouchDBClient {
 			throw CouchDBClientError.unauthorized
 		}
 
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
-
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
-
-		let decoder = JSONDecoder()
-		do {
-			let explainResponse = try decoder.decode(MangoExplainResponse.self, from: data)
-			return explainResponse
-		} catch let parsingError {
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
-				throw CouchDBClientError.getError(error: couchdbError)
-			}
-			throw parsingError
-		}
+		let data = try await collectResponseData(from: response)
+		return try decodeJSON(
+			MangoExplainResponse.self,
+			from: data,
+			mapCouchError: { CouchDBClientError.getError(error: $0) }
+		)
 	}
 
 	/// Uploads an attachment to a CouchDB document.
@@ -1578,22 +1331,12 @@ public actor CouchDBClient {
 		if response.status == .unauthorized {
 			throw CouchDBClientError.unauthorized
 		}
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
-		guard let responseData = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
-		let decoder = JSONDecoder()
-		do {
-			let updateResponse = try decoder.decode(CouchUpdateResponse.self, from: responseData)
-			return updateResponse
-		} catch let parsingError {
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: responseData) {
-				throw CouchDBClientError.updateError(error: couchdbError)
-			}
-			throw parsingError
-		}
+		let responseData = try await collectResponseData(from: response)
+		return try decodeJSON(
+			CouchUpdateResponse.self,
+			from: responseData,
+			mapCouchError: { CouchDBClientError.updateError(error: $0) }
+		)
 	}
 
 	/// Downloads an attachment from a CouchDB document.
@@ -1631,13 +1374,7 @@ public actor CouchDBClient {
 		if response.status == .unauthorized {
 			throw CouchDBClientError.unauthorized
 		}
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
-		return data
+		return try await collectResponseData(from: response)
 	}
 
 	/// Deletes an attachment from a CouchDB document.
@@ -1677,22 +1414,12 @@ public actor CouchDBClient {
 		if response.status == .unauthorized {
 			throw CouchDBClientError.unauthorized
 		}
-		let body = response.body
-		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
-		guard let responseData = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
-		let decoder = JSONDecoder()
-		do {
-			let updateResponse = try decoder.decode(CouchUpdateResponse.self, from: responseData)
-			return updateResponse
-		} catch let parsingError {
-			if let couchdbError = try? decoder.decode(CouchDBError.self, from: responseData) {
-				throw CouchDBClientError.deleteError(error: couchdbError)
-			}
-			throw parsingError
-		}
+		let responseData = try await collectResponseData(from: response)
+		return try decodeJSON(
+			CouchUpdateResponse.self,
+			from: responseData,
+			mapCouchError: { CouchDBClientError.deleteError(error: $0) }
+		)
 	}
 }
 
@@ -1799,16 +1526,120 @@ internal extension CouchDBClient {
 
 		sessionCookie = cookie
 
-		let body = response.body
+		let data = try await collectResponseData(from: response)
+		authData = try JSONDecoder().decode(CreateSessionResponse.self, from: data)
+		return authData
+	}
+
+	func collectResponseData(from response: HTTPClientResponse) async throws -> Data {
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+		var bytes = try await response.body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
 
 		guard let data = bytes.readData(length: bytes.readableBytes) else {
 			throw CouchDBClientError.noData
 		}
 
-		authData = try JSONDecoder().decode(CreateSessionResponse.self, from: data)
-		return authData
+		return data
+	}
+
+	func decodeJSON<T: Decodable>(
+		_ type: T.Type,
+		from data: Data,
+		dateDecodingStrategy: JSONDecoder.DateDecodingStrategy? = nil,
+		mapCouchError: (CouchDBError) -> CouchDBClientError
+	) throws -> T {
+		let decoder = JSONDecoder()
+		if let dateDecodingStrategy {
+			decoder.dateDecodingStrategy = dateDecodingStrategy
+		}
+
+		do {
+			return try decoder.decode(type, from: data)
+		} catch let parsingError {
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw mapCouchError(couchdbError)
+			}
+			throw parsingError
+		}
+	}
+
+	func performGetRequest(
+		fromDB dbName: String,
+		uri: String,
+		queryItems: [URLQueryItem]? = nil,
+		eventLoopGroup: EventLoopGroup? = nil
+	) async throws -> (response: HTTPClientResponse, bytes: ByteBuffer) {
+		try await authIfNeed(eventLoopGroup: eventLoopGroup)
+
+		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
+
+		defer {
+			if eventLoopGroup != nil {
+				DispatchQueue.main.async {
+					try? httpClient.syncShutdown()
+				}
+			}
+		}
+
+		let url = buildUrl(path: "/" + dbName + "/" + uri, query: queryItems ?? [])
+		let request = try buildRequest(fromUrl: url, withMethod: .GET)
+		let response =
+			try await httpClient
+			.execute(request, timeout: .seconds(requestsTimeout))
+
+		if response.status == .unauthorized {
+			throw CouchDBClientError.unauthorized
+		}
+
+		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
+		var bytes = try await response.body.collect(upTo: expectedBytes)
+
+		if response.status == .notFound {
+			guard let data = bytes.readData(length: bytes.readableBytes) else {
+				throw CouchDBClientError.noData
+			}
+
+			let decoder = JSONDecoder()
+			if let couchdbError = try? decoder.decode(CouchDBError.self, from: data) {
+				throw CouchDBClientError.notFound(error: couchdbError)
+			}
+			throw CouchDBClientError.unknownResponse
+		}
+
+		return (response, bytes)
+	}
+
+	func performFindRequest(
+		inDB dbName: String,
+		body: HTTPClientRequest.Body,
+		eventLoopGroup: EventLoopGroup? = nil
+	) async throws -> (response: HTTPClientResponse, bytes: ByteBuffer) {
+		try await authIfNeed(eventLoopGroup: eventLoopGroup)
+
+		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
+
+		defer {
+			if eventLoopGroup != nil {
+				DispatchQueue.main.async {
+					try? httpClient.syncShutdown()
+				}
+			}
+		}
+
+		let url = buildUrl(path: "/" + dbName + "/_find", query: [])
+		var request = try buildRequest(fromUrl: url, withMethod: .POST)
+		request.body = body
+		let response =
+			try await httpClient
+			.execute(request, timeout: .seconds(requestsTimeout))
+
+		if response.status == .unauthorized {
+			throw CouchDBClientError.unauthorized
+		}
+
+		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
+		let bytes = try await response.body.collect(upTo: expectedBytes)
+		return (response, bytes)
 	}
 
 	func buildRequest(fromUrl url: String, withMethod method: HTTPMethod) throws -> HTTPClientRequest {
