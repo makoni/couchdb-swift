@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import NIOCore  // For ByteBuffer
+import NIOPosix
 @testable import CouchDBClient
 
 fileprivate let config = CouchDBClient.Config(
@@ -41,7 +42,7 @@ struct AttachmentsAPITests {
 		}
 		let doc = Doc(_id: testDocId, type: "attachment-test")
 		let encodedDoc = try JSONEncoder().encode(doc)
-		_ = try await couchDBClient.insert(dbName: testsDB, body: .bytes(ByteBuffer(data: encodedDoc)))
+		_ = try await couchDBClient.insert(dbName: testsDB, body: makeRequestBody(from: encodedDoc))
 	}
 
 	@Test("Upload attachment to document")
@@ -50,7 +51,7 @@ struct AttachmentsAPITests {
 		let response = try await couchDBClient.get(fromDB: testsDB, uri: testDocId)
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
 		var bytes = try await response.body.collect(upTo: expectedBytes)
-		guard let dataDoc = bytes.readData(length: bytes.readableBytes) else { throw CouchDBClientError.noData }
+		let dataDoc = try readAllData(from: bytes)
 		let doc = try JSONSerialization.jsonObject(with: dataDoc, options: []) as? [String: Any]
 		let rev = (doc?["_rev"] as? String) ?? ""
 		let uploadResponse = try await couchDBClient.uploadAttachment(
@@ -76,12 +77,27 @@ struct AttachmentsAPITests {
 		#expect(downloadedData == uploadedData)
 	}
 
+	@Test("Download attachment providing an EventLoopGroup")
+	func downloadAttachment_with_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		let downloadedData = try await couchDBClient.downloadAttachment(
+			dbName: testsDB,
+			docId: testDocId,
+			attachmentName: testAttachmentName,
+			eventLoopGroup: group
+		)
+
+		#expect(downloadedData == embeddedTestImageData)
+
+		try await group.shutdownGracefully()
+	}
+
 	@Test("Delete attachment from document")
 	func deleteAttachment() async throws {
 		let response = try await couchDBClient.get(fromDB: testsDB, uri: testDocId)
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
 		var bytes = try await response.body.collect(upTo: expectedBytes)
-		guard let dataDoc = bytes.readData(length: bytes.readableBytes) else { throw CouchDBClientError.noData }
+		let dataDoc = try readAllData(from: bytes)
 		let doc = try JSONSerialization.jsonObject(with: dataDoc, options: []) as? [String: Any]
 		let rev = (doc?["_rev"] as? String) ?? ""
 		let deleteResponse = try await couchDBClient.deleteAttachment(

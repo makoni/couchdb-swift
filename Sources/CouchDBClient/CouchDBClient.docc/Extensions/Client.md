@@ -12,6 +12,7 @@ This client is fully compatible with SwiftNIO, making it ideal for both server-s
 
 ### Initialization
 - ``init(config:httpClient:)``
+- ``shutdown()``
 
 ### Database Management
 - ``getAllDBs(eventLoopGroup:)``  
@@ -20,6 +21,8 @@ This client is fully compatible with SwiftNIO, making it ideal for both server-s
 - ``dbExists(_:eventLoopGroup:)``  
 
 ### Document Operations
+- ``get(fromDB:uri:queryItems:eventLoopGroup:)``  
+- ``get(fromDB:uri:queryItems:dateDecodingStrategy:eventLoopGroup:)``  
 - ``insert(dbName:body:eventLoopGroup:)``  
 - ``insert(dbName:doc:dateEncodingStrategy:eventLoopGroup:)``  
 - ``update(dbName:doc:dateEncodingStrategy:eventLoopGroup:)``  
@@ -27,8 +30,14 @@ This client is fully compatible with SwiftNIO, making it ideal for both server-s
 - ``delete(fromDb:doc:eventLoopGroup:)``  
 - ``delete(fromDb:uri:rev:eventLoopGroup:)``  
 
-### Querying and Fetching
-- ``get(fromDB:uri:queryItems:eventLoopGroup:)``  
-- ``get(fromDB:uri:queryItems:dateDecodingStrategy:eventLoopGroup:)``  
+### Querying and Indexes
 - ``find(inDB:body:eventLoopGroup:)``  
-- ``find(inDB:selector:dateDecodingStrategy:eventLoopGroup:)``  
+- ``find(inDB:query:dateDecodingStrategy:eventLoopGroup:)``  
+- ``listIndexes(inDB:eventLoopGroup:)``
+- ``createIndex(inDB:index:eventLoopGroup:)``
+- ``explain(inDB:query:eventLoopGroup:)``
+
+### Attachments
+- ``uploadAttachment(dbName:docId:attachmentName:data:contentType:rev:eventLoopGroup:)``
+- ``downloadAttachment(dbName:docId:attachmentName:eventLoopGroup:)``
+- ``deleteAttachment(dbName:docId:attachmentName:rev:eventLoopGroup:)``

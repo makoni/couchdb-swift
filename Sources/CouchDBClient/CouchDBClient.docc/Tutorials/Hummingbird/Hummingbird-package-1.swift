@@ -25,7 +25,7 @@ let package = Package(
 			name: "HummingbirdTest",
 			dependencies: [
 				.product(name: "ArgumentParser", package: "swift-argument-parser"),
-				.product(name: "Hummingbird", package: "hummingbird"), .product(name: "Hummingbird", package: "hummingbird")
+				.product(name: "Hummingbird", package: "hummingbird")
 			]),
 		.testTarget(
 			name: "HummingbirdTestTests",
