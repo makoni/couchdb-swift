@@ -19,7 +19,7 @@ jobs:
         image: swift:latest
     steps:
       - name: Start CouchDB
-        uses: iamssen/couchdb-github-action@0.3.0
+        uses: iamssen/couchdb-github-action@master
         with:
           couchdb-version: ${{ matrix.couchdb }}
       - name: Checkout
