@@ -403,7 +403,7 @@ public actor CouchDBClient {
 			queryItems: queryItems,
 			eventLoopGroup: eventLoopGroup
 		)
-		var bytes = result.bytes
+        let bytes = result.bytes
 
 		let data = try readAllData(from: bytes)
 
@@ -453,7 +453,7 @@ public actor CouchDBClient {
 			body: requestBody,
 			eventLoopGroup: eventLoopGroup
 		)
-		var bytes = result.bytes
+        let bytes = result.bytes
 
 		let data = try readAllData(from: bytes)
 
@@ -504,7 +504,7 @@ public actor CouchDBClient {
 			body: requestBody,
 			eventLoopGroup: eventLoopGroup
 		)
-		var bytes = result.bytes
+        let bytes = result.bytes
 
 		let data = try readAllData(from: bytes)
 
@@ -901,7 +901,7 @@ public actor CouchDBClient {
 		)
 		let request = try self.buildRequest(fromUrl: url, withMethod: .DELETE)
 		let result = try await authorizedBytes(request, eventLoopGroup: eventLoopGroup)
-		var bytes = result.bytes
+        let bytes = result.bytes
 
 		guard let data = readableData(from: bytes) else {
 			return CouchUpdateResponse(ok: false, id: "", rev: "")
@@ -1356,7 +1356,7 @@ internal extension CouchDBClient {
 	}
 
 	func collectResponseData(from response: HTTPClientResponse) async throws -> Data {
-		var bytes = try await collectResponseBytes(from: response)
+        let bytes = try await collectResponseBytes(from: response)
 		return try readAllData(from: bytes)
 	}
 
@@ -1423,7 +1423,7 @@ internal extension CouchDBClient {
 		let url = buildUrl(path: "/" + dbName + "/" + uri, query: queryItems ?? [])
 		let request = try buildRequest(fromUrl: url, withMethod: .GET)
 		let result = try await authorizedBytes(request, eventLoopGroup: eventLoopGroup)
-		var bytes = result.bytes
+        let bytes = result.bytes
 
 		if result.response.status == .notFound {
 			guard let data = readableData(from: bytes) else {
