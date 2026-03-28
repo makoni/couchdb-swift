@@ -405,9 +405,7 @@ public actor CouchDBClient {
 		)
 		var bytes = result.bytes
 
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
+		let data = try readAllData(from: bytes)
 
 		return try decodeJSON(
 			T.self,
@@ -448,7 +446,7 @@ public actor CouchDBClient {
 	public func find<T: CouchDBRepresentable>(inDB dbName: String, selector: Codable, dateDecodingStrategy: JSONDecoder.DateDecodingStrategy = .secondsSince1970, eventLoopGroup: EventLoopGroup? = nil) async throws -> [T] {
 		let encoder = JSONEncoder()
 		let selectorData = try encoder.encode(selector)
-		let requestBody: HTTPClientRequest.Body = .bytes(ByteBuffer(data: selectorData))
+		let requestBody = requestBody(from: selectorData)
 
 		let result = try await performFindRequest(
 			inDB: dbName,
@@ -457,9 +455,7 @@ public actor CouchDBClient {
 		)
 		var bytes = result.bytes
 
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
+		let data = try readAllData(from: bytes)
 
 		let response = try decodeJSON(
 			CouchDBFindResponse<T>.self,
@@ -501,7 +497,7 @@ public actor CouchDBClient {
 	public func find<T: CouchDBRepresentable>(inDB dbName: String, query: MangoQuery, dateDecodingStrategy: JSONDecoder.DateDecodingStrategy = .secondsSince1970, eventLoopGroup: EventLoopGroup? = nil) async throws -> [T] {
 		let encoder = JSONEncoder()
 		let queryData = try encoder.encode(query)
-		let requestBody: HTTPClientRequest.Body = .bytes(ByteBuffer(data: queryData))
+		let requestBody = requestBody(from: queryData)
 
 		let result = try await performFindRequest(
 			inDB: dbName,
@@ -510,9 +506,7 @@ public actor CouchDBClient {
 		)
 		var bytes = result.bytes
 
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
-			throw CouchDBClientError.noData
-		}
+		let data = try readAllData(from: bytes)
 
 		let response = try decodeJSON(
 			CouchDBFindResponse<T>.self,
@@ -720,7 +714,7 @@ public actor CouchDBClient {
 		encoder.dateEncodingStrategy = dateEncodingStrategy
 		let encodedData = try encoder.encode(doc)
 
-		let body: HTTPClientRequest.Body = .bytes(ByteBuffer(data: encodedData))
+		let body = requestBody(from: encodedData)
 
 		let updateResponse = try await update(
 			dbName: dbName,
@@ -848,7 +842,7 @@ public actor CouchDBClient {
 		encoder.dateEncodingStrategy = dateEncodingStrategy
 		let insertEncodeData = try encoder.encode(doc)
 
-		let body: HTTPClientRequest.Body = .bytes(ByteBuffer(data: insertEncodeData))
+		let body = requestBody(from: insertEncodeData)
 
 		let insertResponse = try await insert(
 			dbName: dbName,
@@ -909,7 +903,7 @@ public actor CouchDBClient {
 		let result = try await authorizedBytes(request, eventLoopGroup: eventLoopGroup)
 		var bytes = result.bytes
 
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
+		guard let data = readableData(from: bytes) else {
 			return CouchUpdateResponse(ok: false, id: "", rev: "")
 		}
 
@@ -1008,7 +1002,7 @@ public actor CouchDBClient {
 		let url = buildUrl(path: "/\(dbName)/_index")
 		let encoder = JSONEncoder()
 		let indexData = try encoder.encode(index)
-		let requestBody: HTTPClientRequest.Body = .bytes(ByteBuffer(data: indexData))
+		let requestBody = requestBody(from: indexData)
 
 		var request = try buildRequest(fromUrl: url, withMethod: .POST)
 		request.body = requestBody
@@ -1046,7 +1040,7 @@ public actor CouchDBClient {
 		let url = buildUrl(path: "/\(dbName)/_explain")
 		let encoder = JSONEncoder()
 		let queryData = try encoder.encode(query)
-		let requestBody: HTTPClientRequest.Body = .bytes(ByteBuffer(data: queryData))
+		let requestBody = requestBody(from: queryData)
 
 		var request = try buildRequest(fromUrl: url, withMethod: .POST)
 		request.body = requestBody
@@ -1088,7 +1082,7 @@ public actor CouchDBClient {
 		let url = buildUrl(path: "/\(dbName)/\(docId)/\(attachmentName)", query: [URLQueryItem(name: "rev", value: rev)])
 		var request = try buildRequest(fromUrl: url, withMethod: .PUT)
 		request.headers.replaceOrAdd(name: "Content-Type", value: contentType)
-		request.body = .bytes(ByteBuffer(data: data))
+		request.body = requestBody(from: data)
 		return try await authorizedDecoded(
 			CouchUpdateResponse.self,
 			request: request,
@@ -1363,12 +1357,33 @@ internal extension CouchDBClient {
 
 	func collectResponseData(from response: HTTPClientResponse) async throws -> Data {
 		var bytes = try await collectResponseBytes(from: response)
+		return try readAllData(from: bytes)
+	}
 
-		guard let data = bytes.readData(length: bytes.readableBytes) else {
+	func readableData(from bytes: ByteBuffer) -> Data? {
+		guard bytes.readableBytes > 0 else {
+			return nil
+		}
+
+		return Data(bytes.readableBytesView)
+	}
+
+	func readAllData(from bytes: ByteBuffer) throws -> Data {
+		guard let data = readableData(from: bytes) else {
 			throw CouchDBClientError.noData
 		}
 
 		return data
+	}
+
+	func byteBuffer(from data: Data) -> ByteBuffer {
+		var buffer = ByteBufferAllocator().buffer(capacity: data.count)
+		buffer.writeBytes(data)
+		return buffer
+	}
+
+	func requestBody(from data: Data) -> HTTPClientRequest.Body {
+		.bytes(byteBuffer(from: data))
 	}
 
 	func decodeJSON<T: Decodable>(
@@ -1411,7 +1426,7 @@ internal extension CouchDBClient {
 		var bytes = result.bytes
 
 		if result.response.status == .notFound {
-			guard let data = bytes.readData(length: bytes.readableBytes) else {
+			guard let data = readableData(from: bytes) else {
 				throw CouchDBClientError.noData
 			}
 

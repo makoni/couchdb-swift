@@ -42,7 +42,7 @@ struct AttachmentsAPITests {
 		}
 		let doc = Doc(_id: testDocId, type: "attachment-test")
 		let encodedDoc = try JSONEncoder().encode(doc)
-		_ = try await couchDBClient.insert(dbName: testsDB, body: .bytes(ByteBuffer(data: encodedDoc)))
+		_ = try await couchDBClient.insert(dbName: testsDB, body: makeRequestBody(from: encodedDoc))
 	}
 
 	@Test("Upload attachment to document")
@@ -51,7 +51,7 @@ struct AttachmentsAPITests {
 		let response = try await couchDBClient.get(fromDB: testsDB, uri: testDocId)
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
 		var bytes = try await response.body.collect(upTo: expectedBytes)
-		guard let dataDoc = bytes.readData(length: bytes.readableBytes) else { throw CouchDBClientError.noData }
+		let dataDoc = try readAllData(from: bytes)
 		let doc = try JSONSerialization.jsonObject(with: dataDoc, options: []) as? [String: Any]
 		let rev = (doc?["_rev"] as? String) ?? ""
 		let uploadResponse = try await couchDBClient.uploadAttachment(
@@ -97,7 +97,7 @@ struct AttachmentsAPITests {
 		let response = try await couchDBClient.get(fromDB: testsDB, uri: testDocId)
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
 		var bytes = try await response.body.collect(upTo: expectedBytes)
-		guard let dataDoc = bytes.readData(length: bytes.readableBytes) else { throw CouchDBClientError.noData }
+		let dataDoc = try readAllData(from: bytes)
 		let doc = try JSONSerialization.jsonObject(with: dataDoc, options: []) as? [String: Any]
 		let rev = (doc?["_rev"] as? String) ?? ""
 		let deleteResponse = try await couchDBClient.deleteAttachment(
