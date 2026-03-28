@@ -23,7 +23,7 @@ jobs:
         with:
           couchdb-version: ${{ matrix.couchdb }}
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@v6
       - name: Swift version
         run: |
           swift --version
