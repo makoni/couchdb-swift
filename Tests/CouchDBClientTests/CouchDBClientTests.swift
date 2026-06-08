@@ -84,7 +84,7 @@ struct CouchDBClientTests {
 
 		let getResponse2 = try await couchDBClient.get(fromDB: testsDB, uri: expectedInsertId)
 		let expectedBytes2 = getResponse2.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
-		var bytes2 = try await getResponse2.body.collect(upTo: expectedBytes2)
+		let bytes2 = try await getResponse2.body.collect(upTo: expectedBytes2)
 		let data2 = try readAllData(from: bytes2)
 
 		testDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data2)
@@ -114,7 +114,7 @@ struct CouchDBClientTests {
 		var expectedName = testDoc.name
 		let getResponse = try await couchDBClient.get(fromDB: testsDB, uri: expectedInsertId)
 		let expectedBytes = getResponse.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
-		var bytes = try await getResponse.body.collect(upTo: expectedBytes)
+		let bytes = try await getResponse.body.collect(upTo: expectedBytes)
 		let data = try readAllData(from: bytes)
 		testDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data)
 
@@ -140,7 +140,7 @@ struct CouchDBClientTests {
 
 		let getResponse2 = try await couchDBClient.get(fromDB: testsDB, uri: expectedInsertId)
 		let expectedBytes2 = getResponse2.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
-		var bytes2 = try await getResponse2.body.collect(upTo: expectedBytes2)
+		let bytes2 = try await getResponse2.body.collect(upTo: expectedBytes2)
 		let data2 = try readAllData(from: bytes2)
 		testDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data2)
 
@@ -189,7 +189,7 @@ struct CouchDBClientTests {
 		)
 
 		let expectedBytes = findResponse.headers.first(name: "content-length").flatMap(Int.init)
-		var bytes = try await findResponse.body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+		let bytes = try await findResponse.body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
 		let data = try readAllData(from: bytes)
 
 		let decodedResponse = try JSONDecoder().decode(CouchDBFindResponse<ExpectedDoc>.self, from: data)
@@ -304,7 +304,7 @@ struct CouchDBClientTests {
 		// Verify original document is unchanged
 		let fetchedResponse = try await couchDBClient.get(fromDB: testsDB, uri: doc._id)
 		let expectedBytes = fetchedResponse.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
-		var bytes = try await fetchedResponse.body.collect(upTo: expectedBytes)
+		let bytes = try await fetchedResponse.body.collect(upTo: expectedBytes)
 		let data = try readAllData(from: bytes)
 		let fetchedDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data)
 		#expect(fetchedDoc._rev == doc._rev)
@@ -395,9 +395,9 @@ struct CouchDBClientTests {
 			eventLoopGroup: group
 		)
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
-		var bytes = try await response.body.collect(upTo: expectedBytes)
+		let bytes = try await response.body.collect(upTo: expectedBytes)
 		let rawData = try readAllData(from: bytes)
-		let data = try #require(rawData)
+		let data = rawData
 		let fetchedDoc = try JSONDecoder().decode(ExpectedDoc.self, from: data)
 
 		#expect(fetchedDoc._id == insertResponse._id)
@@ -445,9 +445,9 @@ struct CouchDBClientTests {
 			eventLoopGroup: group
 		)
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
-		var bytes = try await response.body.collect(upTo: expectedBytes)
+		let bytes = try await response.body.collect(upTo: expectedBytes)
 		let rawData = try readAllData(from: bytes)
-		let data = try #require(rawData)
+		let data = rawData
 		let decodedResponse = try JSONDecoder().decode(CouchDBFindResponse<ExpectedDoc>.self, from: data)
 
 		#expect(decodedResponse.docs.contains(where: { $0._id == insertedDoc._id }))
