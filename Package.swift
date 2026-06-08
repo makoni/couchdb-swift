@@ -1,4 +1,4 @@
-// swift-tools-version:6.0
+// swift-tools-version:6.1
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -12,7 +12,7 @@ let package = Package(
 		.library(name: "CouchDBClient", targets: ["CouchDBClient"])
 	],
 	dependencies: [
-		.package(url: "https://github.com/swift-server/async-http-client.git", from: "1.21.0"),
+		.package(url: "https://github.com/swift-server/async-http-client.git", from: "1.34.0"),
 		.package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.3.0")
 	],
 	targets: [
