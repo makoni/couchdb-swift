@@ -11,7 +11,7 @@ This client is fully compatible with SwiftNIO, making it ideal for both server-s
 ## Topics
 
 ### Initialization
-- ``init(config:httpClient:)``
+- ``init(config:httpClient:eventLoopGroup:)``
 - ``shutdown()``
 
 ### Database Management

@@ -94,8 +94,10 @@ public actor CouchDBClient {
 	private let userPassword: String
 	/// Authorization response from CouchDB.
 	private var authData: CreateSessionResponse?
-	/// HTTP client
-	internal let httpClient: HTTPClient?
+	/// HTTP client used for every request. Created once and reused for the whole lifetime of the client.
+	internal let httpClient: HTTPClient
+	/// Whether ``shutdown()`` should shut down ``httpClient``. `false` for `HTTPClient.shared`, which must never be shut down.
+	private let canShutdownHTTPClient: Bool
 
 	// MARK: - Initializer
 
@@ -107,7 +109,8 @@ public actor CouchDBClient {
 	///
 	/// - Parameters:
 	///   - config: A `CouchDBClient.Config` instance containing the configuration details, including protocol, host, port, username, and password.
-	///   - httpClient: An optional `HTTPClient` instance. If not provided, a shared instance will be used.
+	///   - httpClient: An optional `HTTPClient` instance. If provided, it is reused for every request and shut down by ``shutdown()``.
+	///   - eventLoopGroup: An optional `EventLoopGroup` (e.g. Vapor's `app.eventLoopGroup`) that all requests should run on. Used only when `httpClient` is `nil`: the client then creates a single long-lived `HTTPClient` bound to this group and shuts it down in ``shutdown()``. When both `httpClient` and `eventLoopGroup` are `nil`, the globally shared `HTTPClient.shared` is used (recommended default).
 	///
 	/// ### Example Usage:
 	/// ```swift
@@ -140,14 +143,31 @@ public actor CouchDBClient {
 	///
 	/// - Note: Ensure that the CouchDB server is running and accessible at the specified `couchHost` and `couchPort`
 	/// before attempting to connect.
-	public init(config: CouchDBClient.Config, httpClient: HTTPClient? = nil) {
+	public init(
+		config: CouchDBClient.Config,
+		httpClient: HTTPClient? = nil,
+		eventLoopGroup: EventLoopGroup? = nil
+	) {
 		self.couchProtocol = config.couchProtocol
 		self.couchHost = config.couchHost
 		self.couchPort = config.couchPort
 		self.userName = config.userName
 		self.userPassword = config.userPassword
 		self.requestsTimeout = config.requestsTimeout
-		self.httpClient = httpClient
+
+		if let httpClient {
+			// Caller-owned client. Reused for every request; shut down via `shutdown()`.
+			self.httpClient = httpClient
+			self.canShutdownHTTPClient = true
+		} else if let eventLoopGroup {
+			// One long-lived client bound to the provided EventLoopGroup (e.g. Vapor's `app.eventLoopGroup`).
+			self.httpClient = HTTPClient(eventLoopGroupProvider: .shared(eventLoopGroup))
+			self.canShutdownHTTPClient = true
+		} else {
+			// Default: the globally shared, long-lived client. Must not be shut down.
+			self.httpClient = .shared
+			self.canShutdownHTTPClient = false
+		}
 	}
 
 	/// Shuts down the HTTP client used by the CouchDB client.
@@ -157,8 +177,10 @@ public actor CouchDBClient {
 	/// is no longer needed to avoid resource leaks.
 	///
 	/// - Throws: An error if the shutdown process fails.
+	/// - Note: When the client uses `HTTPClient.shared` (the default), this method is a no-op, since the shared client must not be shut down.
 	public func shutdown() async throws {
-		try await httpClient?.shutdown()
+		guard canShutdownHTTPClient else { return }
+		try await httpClient.shutdown()
 	}
 
 	// MARK: - Public methods
@@ -1171,42 +1193,16 @@ internal extension CouchDBClient {
 		return components.url?.absoluteString ?? ""
 	}
 
-	/// Create an HTTPClient instance if not provided during init method.
-	/// - Parameter eventLoopGroup: NIO's EventLoopGroup object. NIO's shared will be used if nil value provided.
-	/// - Returns: HTTP client.
-	func createHTTPClientIfNeed(eventLoopGroup: EventLoopGroup? = nil) -> HTTPClient {
-		if let httpClient {
-			return httpClient
-		}
-
-		if let eventLoopGroup = eventLoopGroup {
-			return HTTPClient(eventLoopGroupProvider: .shared(eventLoopGroup))
-		} else {
-			return HTTPClient.shared
-		}
-	}
-
-	func shutdownHTTPClientIfNeeded(_ httpClient: HTTPClient, eventLoopGroup: EventLoopGroup?) {
-		guard eventLoopGroup != nil else {
-			return
-		}
-
-		DispatchQueue.main.async {
-			try? httpClient.syncShutdown()
-		}
-	}
-
+	/// Runs `operation` against the long-lived ``httpClient``, ensuring authorization has been performed first.
+	///
+	/// - Parameters:
+	///   - eventLoopGroup: Deprecated and ignored. The `EventLoopGroup` is fixed once via `init`; pass it there instead.
+	///   - operation: The work to perform with the client.
 	func withPreparedClient<T: Sendable>(
 		eventLoopGroup: EventLoopGroup? = nil,
 		_ operation: @Sendable (HTTPClient) async throws -> T
 	) async throws -> T {
-		try await authIfNeed(eventLoopGroup: eventLoopGroup)
-
-		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
-		defer {
-			shutdownHTTPClientIfNeeded(httpClient, eventLoopGroup: eventLoopGroup)
-		}
-
+		try await authIfNeed()
 		return try await operation(httpClient)
 	}
 
@@ -1285,19 +1281,12 @@ internal extension CouchDBClient {
 
 	/// Get authorization cookie in didn't yet. This cookie will be added automatically to requests that require authorization.
 	/// API reference: https://docs.couchdb.org/en/stable/api/server/authn.html#session
-	/// - Parameter eventLoopGroup: NIO's EventLoopGroup object. NIO's shared will be used if nil value provided.
 	/// - Returns: Authorization response.
 	@discardableResult
-	func authIfNeed(eventLoopGroup: EventLoopGroup? = nil) async throws -> CreateSessionResponse? {
+	func authIfNeed() async throws -> CreateSessionResponse? {
 		// already authorized
 		if let authData = authData, let sessionCookieExpires = sessionCookieExpires, sessionCookieExpires > Date() {
 			return authData
-		}
-
-		let httpClient = createHTTPClientIfNeed(eventLoopGroup: eventLoopGroup)
-
-		defer {
-			shutdownHTTPClientIfNeeded(httpClient, eventLoopGroup: eventLoopGroup)
 		}
 
 		let url = buildUrl(path: "/_session")

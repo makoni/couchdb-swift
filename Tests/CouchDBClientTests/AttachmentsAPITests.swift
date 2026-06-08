@@ -50,7 +50,7 @@ struct AttachmentsAPITests {
 		let data = embeddedTestImageData
 		let response = try await couchDBClient.get(fromDB: testsDB, uri: testDocId)
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
-		var bytes = try await response.body.collect(upTo: expectedBytes)
+		let bytes = try await response.body.collect(upTo: expectedBytes)
 		let dataDoc = try readAllData(from: bytes)
 		let doc = try JSONSerialization.jsonObject(with: dataDoc, options: []) as? [String: Any]
 		let rev = (doc?["_rev"] as? String) ?? ""
@@ -96,7 +96,7 @@ struct AttachmentsAPITests {
 	func deleteAttachment() async throws {
 		let response = try await couchDBClient.get(fromDB: testsDB, uri: testDocId)
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init) ?? 1024 * 1024 * 10
-		var bytes = try await response.body.collect(upTo: expectedBytes)
+		let bytes = try await response.body.collect(upTo: expectedBytes)
 		let dataDoc = try readAllData(from: bytes)
 		let doc = try JSONSerialization.jsonObject(with: dataDoc, options: []) as? [String: Any]
 		let rev = (doc?["_rev"] as? String) ?? ""
