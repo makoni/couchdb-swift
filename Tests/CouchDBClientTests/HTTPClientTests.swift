@@ -7,6 +7,7 @@
 
 import Foundation
 import Testing
+import NIO
 import AsyncHTTPClient
 @testable import CouchDBClient
 
@@ -38,10 +39,8 @@ struct HTTPClientTests {
 		let httpClient = HTTPClient()
 		let couchDBClient = CouchDBClient(config: config, httpClient: httpClient)
 
-		let httpClientProvided = try #require(await couchDBClient.httpClient)
-
-		let httpClientCreatedIfNeed = await couchDBClient.createHTTPClientIfNeed()
-		#expect(httpClientProvided === httpClientCreatedIfNeed)
+		// A provided client is reused as-is for every request.
+		let httpClientProvided = await couchDBClient.httpClient
 		#expect(httpClientProvided === httpClient)
 
 		try await httpClient.shutdown()
@@ -54,5 +53,24 @@ struct HTTPClientTests {
 			httpClient: HTTPClient()
 		)
 		try await client.shutdown()
+	}
+
+	@Test("Provide own EventLoopGroup via init")
+	func provide_eventLoopGroup() async throws {
+		let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+		let couchDBClient = CouchDBClient(config: config, eventLoopGroup: group)
+
+		// A single long-lived client (bound to the group) handles auth + multiple requests.
+		let tempDB = "test_elg_init_db"
+		if try await couchDBClient.dbExists(tempDB) {
+			try await couchDBClient.deleteDB(tempDB)
+		}
+		_ = try await couchDBClient.createDB(tempDB)
+		#expect(try await couchDBClient.dbExists(tempDB))
+		try await couchDBClient.deleteDB(tempDB)
+
+		// The client created its own HTTPClient from the group and must shut it down.
+		try await couchDBClient.shutdown()
+		try await group.shutdownGracefully()
 	}
 }

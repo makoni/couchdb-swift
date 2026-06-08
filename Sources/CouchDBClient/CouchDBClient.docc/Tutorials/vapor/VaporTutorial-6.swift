@@ -29,8 +29,7 @@ func routes(_ app: Application) throws {
 			uri: "_design/all/_view/by_url",
 			queryItems: [
 				URLQueryItem(name: "key", value: "\"\(url)\"")
-			],
-			eventLoopGroup: req.eventLoop
+			]
 		)
 
 		let expectedBytes =
