@@ -36,6 +36,12 @@
                 
                 @Code(name: "main.swift", file: ErrorsHandlingTutorial-4.swift)
             }
+            
+            @Step {
+                You can also handle errors during a `delete` operation. For example, if the document's revision is stale, CouchDB will return a conflict error.
+                
+                @Code(name: "main.swift", file: ErrorsHandlingTutorial-5.swift)
+            }
         }
     }
 }
