@@ -35,21 +35,28 @@ public actor CouchDBClient {
 		/// The timeout duration for CouchDB requests, specified in seconds.
 		let requestsTimeout: Int64
 
+		/// The maximum number of bytes the client will buffer for a single response.
+		let maxResponseBytes: Int
+
 		/// Initializes a new `Config` instance with default values for certain parameters.
 		/// - Parameters:
 		///   - couchProtocol: The communication protocol, defaulting to `.http`.
 		///   - couchHost: The hostname or IP address, defaulting to `"127.0.0.1"`.
 		///   - couchPort: The port number, defaulting to `5984`.
 		///   - userName: The username for authentication (required).
-		///   - userPassword: The password for authentication (required).
-		///   - requestsTimeout: The timeout duration in seconds, defaulting to `30`.
+		///   - userPassword: The password for authentication (default is the value of the `COUCHDB_PASS` environment variable).
+		///   - requestsTimeout: The timeout duration for CouchDB requests, defaulting to `30` seconds.
+		///   - maxResponseBytes: The maximum number of bytes buffered for a single response, defaulting to `10 MB`.
+		///     Responses larger than this limit fail with `NIOTooManyBytesError` instead of being buffered.
+		///     A server-provided `Content-Length` header can only lower, never raise, this limit.
 		public init(
 			couchProtocol: CouchDBClient.CouchDBProtocol = .http,
 			couchHost: String = "127.0.0.1",
 			couchPort: Int = 5984,
 			userName: String,
 			userPassword: String = ProcessInfo.processInfo.environment["COUCHDB_PASS"] ?? "",
-			requestsTimeout: Int64 = 30
+			requestsTimeout: Int64 = 30,
+			maxResponseBytes: Int = 10 * 1024 * 1024
 		) {
 			self.couchProtocol = couchProtocol
 			self.couchHost = couchHost
@@ -57,6 +64,7 @@ public actor CouchDBClient {
 			self.userName = userName
 			self.userPassword = userPassword
 			self.requestsTimeout = requestsTimeout
+			self.maxResponseBytes = maxResponseBytes
 		}
 	}
 
@@ -90,6 +98,8 @@ public actor CouchDBClient {
 	private let userName: String
 	/// You can set a timeout for requests in seconds. Default value is 30.
 	private var requestsTimeout: Int64 = 30
+	/// The maximum number of bytes buffered for a single response.
+	private let maxResponseBytes: Int
 	/// CouchDB user password.
 	private let userPassword: String
 	/// Authorization response from CouchDB.
@@ -154,6 +164,7 @@ public actor CouchDBClient {
 		self.userName = config.userName
 		self.userPassword = config.userPassword
 		self.requestsTimeout = config.requestsTimeout
+		self.maxResponseBytes = config.maxResponseBytes
 
 		if let httpClient {
 			// Caller-owned client. Reused for every request; shut down via `shutdown()`.
@@ -591,9 +602,9 @@ public actor CouchDBClient {
 	///     If not provided, the function uses a shared instance of `HTTPClient`.
 	/// - Returns: A `CouchUpdateResponse` object containing the result of the update operation.
 	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails,
-	///   `.noData` if the response body cannot be read, `.conflictError(error:)` when CouchDB returns a conflict,
-	///   `.updateError(error:)` when CouchDB reports a not-found or update error, and `.unknownResponse` if
-	///   CouchDB returns an unexpected error payload.
+	///   `.noData` if the response body is empty, `.conflictError(error:)` when CouchDB responds with `409 Conflict`,
+	///   `.updateError(error:)` when CouchDB responds with `404 Not Found` or any other error payload, and
+	///   `.unknownResponse` when an error payload cannot be parsed.
 	///
 	/// ### Function Workflow:
 	/// 1. Constructs a `PUT` request for the target document and attaches the provided body.
@@ -764,7 +775,7 @@ public actor CouchDBClient {
 	///     If not provided, the function uses a shared instance of `HTTPClient`.
 	/// - Returns: A `CouchUpdateResponse` object containing the result of the insertion operation.
 	/// - Throws: A `CouchDBClientError` if authentication fails, the response body is missing,
-	///   or CouchDB returns an error payload that maps to `.insertError(error:)`.
+	///   CouchDB returns a conflict, or CouchDB returns an error payload that maps to `.insertError(error:)`.
 	///   Non-CouchDB decoding failures are propagated as the underlying decoding error.
 	///
 	/// ### Example Usage:
@@ -802,10 +813,15 @@ public actor CouchDBClient {
 		let url = buildUrl(path: "/\(dbName)")
 		var request = try self.buildRequest(fromUrl: url, withMethod: .POST)
 		request.body = body
-		return try await authorizedDecoded(
+		let result = try await authorizedResponseAndData(request, eventLoopGroup: eventLoopGroup)
+
+		if result.response.status == .conflict {
+			throw CouchDBClientError.conflictError(error: try decodeCouchError(from: result.data))
+		}
+
+		return try decodeJSON(
 			CouchUpdateResponse.self,
-			request: request,
-			eventLoopGroup: eventLoopGroup,
+			from: result.data,
 			mapCouchError: { CouchDBClientError.insertError(error: $0) }
 		)
 	}
@@ -822,7 +838,9 @@ public actor CouchDBClient {
 	///   - dateEncodingStrategy: The strategy used for encoding dates within the document. Defaults to `.secondsSince1970`.
 	///   - eventLoopGroup: An optional `EventLoopGroup` for managing network operations. If not provided, a shared instance of `HTTPClient` is used.
 	/// - Returns: The newly inserted document of type `T`, updated with its new `_rev` property.
-	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unknownResponse` if the server's response is unexpected or unsuccessful.
+	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.conflictError(error:)` if the document already exists,
+	///   `.insertError(error:)` if the server responds with an error payload, `.noData` if the response body is empty,
+	///   or `.unknownResponse` if the server's response is unexpected or unsuccessful.
 	///
 	/// ### Function Workflow:
 	/// 1. Encodes the document using a `JSONEncoder` configured with the specified date encoding strategy.
@@ -892,15 +910,17 @@ public actor CouchDBClient {
 	///     If not provided, the function uses a shared instance of `HTTPClient`.
 	/// - Returns: A `CouchUpdateResponse` object containing the result of the delete operation.
 	/// - Throws: A `CouchDBClientError` if the operation fails, including: `.unauthorized` if authentication fails,
-	///   `.deleteError(error:)` when CouchDB reports the document as missing, or `.unknownResponse` when CouchDB
-	///   returns an unexpected error payload.
+	///   `.noData` if the response body is empty, `.conflictError(error:)` when CouchDB responds with `409 Conflict`,
+	///   `.deleteError(error:)` when CouchDB responds with `404 Not Found` or any other error payload, or
+	///   `.unknownResponse` when an error payload cannot be parsed.
 	///
 	/// ### Function Workflow:
 	/// 1. Constructs a `DELETE` request using the database name, document URI, and revision query parameter.
 	/// 2. Executes the request using an authenticated client and buffers the response body.
-	/// 3. Throws `.deleteError(error:)` when CouchDB responds with `404 Not Found`.
-	/// 4. Decodes and returns `CouchUpdateResponse` for successful responses.
-	/// 5. Returns `CouchUpdateResponse(ok: false, id: "", rev: "")` when the response body is empty.
+	/// 3. Throws `.noData` when the response body is empty.
+	/// 4. Throws `.conflictError(error:)` when CouchDB responds with `409 Conflict`.
+	/// 5. Throws `.deleteError(error:)` when CouchDB responds with `404 Not Found` or any other error payload.
+	/// 6. Decodes and returns `CouchUpdateResponse` for successful responses.
 	///
 	/// ### Example Usage:
 	/// ```swift
@@ -926,14 +946,22 @@ public actor CouchDBClient {
         let bytes = result.bytes
 
 		guard let data = readableData(from: bytes) else {
-			return CouchUpdateResponse(ok: false, id: "", rev: "")
+			throw CouchDBClientError.noData
+		}
+
+		if result.response.status == .conflict {
+			throw CouchDBClientError.conflictError(error: try decodeCouchError(from: data))
 		}
 
 		if result.response.status == .notFound {
 			throw CouchDBClientError.deleteError(error: try decodeCouchError(from: data))
 		}
 
-		return try JSONDecoder().decode(CouchUpdateResponse.self, from: data)
+		return try decodeJSON(
+			CouchUpdateResponse.self,
+			from: data,
+			mapCouchError: { CouchDBClientError.deleteError(error: $0) }
+		)
 	}
 
 	/// Deletes a document conforming to `CouchDBRepresentable` from a specified database on the CouchDB server.
@@ -1341,7 +1369,7 @@ internal extension CouchDBClient {
 
 	func collectResponseBytes(from response: HTTPClientResponse) async throws -> ByteBuffer {
 		let expectedBytes = response.headers.first(name: "content-length").flatMap(Int.init)
-		return try await response.body.collect(upTo: expectedBytes ?? 1024 * 1024 * 10)
+		return try await response.body.collect(upTo: min(expectedBytes ?? maxResponseBytes, maxResponseBytes))
 	}
 
 	func collectResponseData(from response: HTTPClientResponse) async throws -> Data {

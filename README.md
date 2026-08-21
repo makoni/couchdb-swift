@@ -67,7 +67,8 @@ let config = CouchDBClient.Config(
     couchPort: 5984,
     userName: "admin",
     userPassword: "",
-    requestsTimeout: 30
+    requestsTimeout: 30,
+    maxResponseBytes: 10 * 1024 * 1024
 )
 let couchDBClient = CouchDBClient(config: config)
 ```
@@ -84,7 +85,8 @@ let config = CouchDBClient.Config(
     couchHost: "127.0.0.1",
     couchPort: 5984,
     userName: "admin",
-    requestsTimeout: 30
+    requestsTimeout: 30,
+    maxResponseBytes: 10 * 1024 * 1024
 )
 let couchDBClient = CouchDBClient(config: config)
 ```
