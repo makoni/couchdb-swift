@@ -314,6 +314,33 @@ struct CouchDBClientTests {
 		_ = try await couchDBClient.delete(fromDb: testsDB, doc: doc)
 	}
 
+	@Test("Delete document with outdated rev. Should throw conflict")
+	func delete_document_conflict() async throws {
+		// Insert document without _rev, let CouchDB assign it
+		var doc = ExpectedDoc(name: "should not exist")
+		doc = try await couchDBClient.insert(dbName: testsDB, doc: doc)
+		let outdatedRev = try #require(doc._rev)
+
+		// Advance the revision so that `outdatedRev` becomes stale
+		doc = try await couchDBClient.update(dbName: testsDB, doc: doc)
+
+		let error = await #expect(throws: CouchDBClientError.self) {
+			_ = try await couchDBClient.delete(fromDb: testsDB, uri: doc._id, rev: outdatedRev)
+		}
+
+		#expect(
+			{
+				switch error {
+				case .conflictError(let error):
+					return error.error == "conflict"
+				default: return false
+				}
+			}(), "Expected CouchDBClientError.conflictError")
+
+		// Cleanup
+		_ = try await couchDBClient.delete(fromDb: testsDB, doc: doc)
+	}
+
 	@Test("Delete non existing document. Should throw deleteError")
 	func delete_non_existing_document() async throws {
 		let doc = ExpectedDoc(name: "should not exist", _id: "nonexistent_doc_id", _rev: "1-abc")
