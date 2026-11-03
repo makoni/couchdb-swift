@@ -29,7 +29,7 @@ This is a simple library to work with CouchDB in Swift.
 
 ## Supported Platforms & Swift Versions
 
-- Swift 6.0+ (actor-based concurrency)
+- Swift 6.2+ (actor-based concurrency)
 - Swift 5.x (use version 1.7.0)
 - macOS, Linux (tested on Ubuntu)
 - Compatible with Vapor 4 and Hummingbird

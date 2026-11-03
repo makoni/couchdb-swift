@@ -9,7 +9,7 @@ on:
 jobs:
   macOS:
     name: Build on macOS
-    runs-on: macOS-15
+    runs-on: macos-latest
     steps:
     - name: Print Swift version
       run: swift --version
